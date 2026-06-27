@@ -763,7 +763,7 @@ function loadData(){
 function saveData(d){
   try{localStorage.setItem('menuApp_v4',JSON.stringify(d))}
   catch(e){showRatingToast('⚠️ 保存失敗：ストレージ容量不足です');return;}
-  pushToGist();
+  pushMenuToGist();
 }
 
 let DB=loadData();
@@ -1155,7 +1155,7 @@ function goShopAdmin(weekKey){
 function getShopChecks(weekKey){
   try{return JSON.parse(localStorage.getItem('shop_'+weekKey)||'{}')}catch(e){return{}}
 }
-function saveShopChecks(weekKey,checks){localStorage.setItem('shop_'+weekKey,JSON.stringify(checks));pushToGist();}
+function saveShopChecks(weekKey,checks){localStorage.setItem('shop_'+weekKey,JSON.stringify(checks));pushMenuToGist();}
 // 3-state: null/false → 'arranged' → 'stocked' → null
 function shopNextState(cur){
   if(!cur)return 'arranged';
@@ -2040,7 +2040,7 @@ function openAeon(term){
 
 // ===================== RATINGS =====================
 function getRatings(){try{return JSON.parse(localStorage.getItem('ratings_v2')||'{}')}catch(e){return{}}}
-function saveRatings(r){try{localStorage.setItem('ratings_v2',JSON.stringify(r))}catch(e){return;}pushToGist();}
+function saveRatings(r){try{localStorage.setItem('ratings_v2',JSON.stringify(r))}catch(e){return;}pushRatingsToGist();}
 function ratingKey(wk,d,menuName){return wk+'_'+d+'_'+menuName}
 function getSideLastUsed(name){
   let latest='';
@@ -2185,22 +2185,22 @@ async function syncFromGist(){
     }
   }catch(e){console.warn('Gist sync failed',e);}
 }
-async function pushToGist(){
+async function fetchGistCurrent(){
+  const gistId=getGistId();
+  if(!gistId)return{version:1};
+  try{
+    const res=await fetch(`https://api.github.com/gists/${gistId}`);
+    if(!res.ok)return{version:1};
+    const gist=await res.json();
+    const file=gist.files&&gist.files['menuapp-data.json'];
+    if(!file)return{version:1};
+    return JSON.parse(file.content)||{version:1};
+  }catch(e){return{version:1};}
+}
+async function writeGist(payload){
   const gistId=getGistId();
   const pat=localStorage.getItem('menuApp_gistPat');
   if(!gistId||!pat)return;
-  const shopChecks={};
-  for(let i=0;i<localStorage.length;i++){
-    const k=localStorage.key(i);
-    if(k&&k.startsWith('shop_')){try{shopChecks[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
-  }
-  const payload={
-    version:1,
-    updatedAt:new Date().toISOString(),
-    menuApp_v4:JSON.parse(localStorage.getItem('menuApp_v4')||'null'),
-    ratings_v2:JSON.parse(localStorage.getItem('ratings_v2')||'{}'),
-    shopChecks
-  };
   try{
     await fetch(`https://api.github.com/gists/${gistId}`,{
       method:'PATCH',
@@ -2208,6 +2208,28 @@ async function pushToGist(){
       body:JSON.stringify({files:{'menuapp-data.json':{content:JSON.stringify(payload,null,2)}}})
     });
   }catch(e){console.warn('Gist push failed',e);}
+}
+async function pushMenuToGist(){
+  const current=await fetchGistCurrent();
+  const shopChecks={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('shop_')){try{shopChecks[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
+  }
+  await writeGist({
+    ...current,
+    updatedAt:new Date().toISOString(),
+    menuApp_v4:JSON.parse(localStorage.getItem('menuApp_v4')||'null'),
+    shopChecks
+  });
+}
+async function pushRatingsToGist(){
+  const current=await fetchGistCurrent();
+  await writeGist({
+    ...current,
+    updatedAt:new Date().toISOString(),
+    ratings_v2:JSON.parse(localStorage.getItem('ratings_v2')||'{}')
+  });
 }
 function saveGistPat(v){localStorage.setItem('menuApp_gistPat',v.trim());showRatingToast('PATを保存しました');}
 async function testGistSync(){
