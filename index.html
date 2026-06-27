@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>夕食献立管理</title>
+<script>(function(){var z={'medium':'1','large':'1.2','xlarge':'1.4'};if(!localStorage.getItem('menuApp_fontSize'))localStorage.setItem('menuApp_fontSize','medium');var s=localStorage.getItem('menuApp_fontSize');document.documentElement.style.zoom=z[s]||'1';})();</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -47,9 +48,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 .day-tab.sat.active{background:#1565c0;color:#fff}
 .day-tab.sun.active{background:#c62828;color:#fff}
 .bottom-tabs{display:flex;background:#fff;border-top:2px solid var(--border);position:sticky;bottom:0;z-index:100}
-.btab{flex:1;padding:12px 4px 10px;font-size:13px;font-weight:600;color:var(--gray);cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:3px solid transparent}
-.btab.active{color:var(--amber);border-top-color:var(--amber)}
+.btab{flex:1;padding:10px 4px 8px;font-size:13px;font-weight:600;color:var(--gray);cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:4px solid transparent;transition:.15s}
+.btab.active{color:var(--amber);border-top-color:var(--amber);background:var(--amber-l);font-weight:800}
 .btab .ico{font-size:24px}
+.btab.active .ico{transform:scale(1.15)}
 
 /* DISH CARD */
 .dish-card{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
@@ -198,7 +200,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 /* ALL MENUS LIST */
 .all-menu-item{background:#fff;border-radius:var(--r);box-shadow:var(--shadow-sm,var(--shadow));margin-bottom:10px;padding:12px 16px;display:flex;align-items:center;gap:12px}
 .all-menu-info{flex:1;min-width:0}
-.all-menu-name{font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.all-menu-name{font-size:15px;font-weight:700;color:var(--navy);word-break:break-all}
 .all-menu-meta{font-size:12px;color:var(--gray);margin-top:3px}
 .all-menu-rating{display:flex;gap:6px;flex-shrink:0}
 .all-menu-btn{background:var(--gray-l);border:1.5px solid var(--border);border-radius:16px;padding:5px 12px;font-size:13px;cursor:pointer;font-weight:700;min-height:36px}
@@ -218,9 +220,29 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 .top-nav-btn .nav-icon{font-size:32px;display:block;margin-bottom:8px}
 
 @media print{
-  .week-tabs,.bottom-tabs,.btab,.back-btn,.no-print{display:none!important}
-  .dish-card{break-inside:avoid;box-shadow:none;border:1px solid #ddd}
-  .screen{display:flex!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff!important;font-size:11pt}
+  .week-tabs,.bottom-tabs,.btab,.back-btn,.no-print,
+  .dish-rating,.rating-btn,.note-box{display:none!important}
+  #app{max-width:100%!important;zoom:1!important}
+  .screen{display:none!important}
+  #screen-week{display:flex!important}
+  .header{background:var(--navy)!important;color:#fff!important;padding:8px 16px!important;position:static!important}
+  .header h1{font-size:14pt!important}
+  #week-content{padding:8px!important;padding-bottom:0!important}
+  /* 全曜日を縦に並べる印刷専用コンテナ */
+  #print-all-days{display:block!important}
+  .print-day-block{break-inside:avoid;margin-bottom:12pt;border:1px solid #ccc;border-radius:6pt;overflow:hidden}
+  .print-day-header{background:var(--navy)!important;color:#fff!important;padding:6pt 10pt;font-size:12pt;font-weight:700}
+  .dish-card{break-inside:avoid;box-shadow:none!important;border:1px solid #ddd!important;margin-bottom:6pt!important}
+  .dish-card:last-child{margin-bottom:0!important}
+  .dish-title{font-size:11pt!important}
+  .dish-section h4{font-size:9pt!important}
+  .step-text,.ing-name,.ing-amt{font-size:9pt!important}
+  .tag{font-size:8pt!important}
+  .equip-tag{font-size:8pt!important}
+  .step-num{width:18pt!important;height:18pt!important;font-size:9pt!important}
+  @page{margin:10mm}
 }
 </style>
 </head>
@@ -252,7 +274,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
     <div style="display:flex;gap:6px;padding:8px 0">
       <input id="all-menus-search" class="form-input" placeholder="🔍 メニュー名で検索..." oninput="renderAllMenus()" style="flex:1">
     </div>
-    <div id="all-menus-cats" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;flex-wrap:nowrap"></div>
+    <div id="all-menus-cats" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 6px;flex-wrap:nowrap"></div>
+    <div id="all-menus-genres" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;flex-wrap:nowrap"></div>
     <div id="all-menus-list"></div>
   </div>
 </div>
@@ -264,9 +287,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
   <div id="week-content" class="content" style="padding-bottom:calc(var(--nav) + 16px)"></div>
   <div class="bottom-tabs">
     <div class="btab active" id="btab-menu" onclick="setWeekTab('menu')"><span class="ico">📅</span>献立</div>
-    <div class="btab" id="btab-shop" onclick="setWeekTab('shop')"><span class="ico">🛒</span>買い物</div>
+    <div class="btab" id="btab-shop" onclick="setWeekTab('shop')"><span class="ico">🛒</span>今週の材料</div>
     <div class="btab" id="btab-steps" onclick="setWeekTab('steps')"><span class="ico">👨‍🍳</span>調理手順</div>
-    <div class="btab no-print" id="btab-print" onclick="window.print()"><span class="ico">🖨️</span>印刷</div>
+    <div class="btab no-print" id="btab-print" onclick="printWeek()"><span class="ico">🖨️</span>印刷</div>
   </div>
 </div>
 
@@ -300,6 +323,25 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
     <div class="section-title">登録済み週</div>
     <div id="admin-week-list"></div>
     <div class="admin-card" style="margin-top:20px">
+      <h3>💾 データ管理</h3>
+      <button class="btn-secondary" style="margin-bottom:8px" onclick="backupJSON()">📥 JSONバックアップ</button>
+      <button class="btn-secondary" onclick="restoreJSON()">📤 JSON復元</button>
+      <input type="file" id="restore-file-input" accept=".json" style="display:none" onchange="onRestoreFileSelected(event)">
+    </div>
+    <div class="admin-card" style="margin-top:20px">
+      <h3>🔗 Gist同期設定</h3>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">ページ読み込み時にGistからデータを取得します。<br>PATはこの端末（管理者）のみ設定してください。</p>
+      <div class="form-group">
+        <label class="form-label">GitHub PAT（管理者のみ）</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" type="password" id="gist-pat-input" placeholder="ghp_..." style="flex:1">
+          <button class="btn-primary" style="white-space:nowrap" onclick="saveGistPat(document.getElementById('gist-pat-input').value)">保存</button>
+        </div>
+      </div>
+      <button class="btn-secondary" onclick="testGistSync()">🔍 接続テスト</button>
+      <div id="gist-status" style="margin-top:10px;font-size:13px;color:var(--gray)"></div>
+    </div>
+    <div class="admin-card" style="margin-top:20px">
       <h3>🔑 パスワード設定</h3>
       <div id="pw-toggle-row" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
         <span style="font-size:14px;color:var(--navy)" id="pw-enabled-label"></span>
@@ -322,10 +364,20 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
       <div class="form-group"><label class="form-label">週開始日（月曜日）</label><input class="form-input" type="date" id="aw-start-date" oninput="renderAdminDayTabs();renderAdminDayContent()"></div>
       <button class="btn-secondary" onclick="randomizeWeek()" style="margin-top:4px">🎲 月火水金を一括ランダム選択</button>
     </div>
-    <div class="admin-day-tabs" id="aw-day-tabs"></div>
-    <div id="aw-day-content"></div>
-    <button class="btn-primary" onclick="saveAdminWeek()">💾 保存する</button>
-    <button class="btn-secondary" onclick="go('admin')">キャンセル</button>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="aw-tab-menu-btn" class="btn-primary" style="flex:1" onclick="setAdminWeekTab('menu')">📅 献立編集</button>
+      <button id="aw-tab-shop-btn" class="btn-secondary" style="flex:1" onclick="setAdminWeekTab('shop')">🛒 手配チェック</button>
+    </div>
+    <div id="aw-menu-section">
+      <div class="admin-day-tabs" id="aw-day-tabs"></div>
+      <div id="aw-day-content"></div>
+      <button class="btn-primary" onclick="saveAdminWeek()">💾 保存する</button>
+      <button class="btn-secondary" onclick="go('admin')">キャンセル</button>
+    </div>
+    <div id="aw-shop-section" style="display:none">
+      <div id="aw-shop-content"></div>
+      <button class="reset-btn" onclick="appConfirm('チェックをリセットしますか？',resetShopFromAdmin)">✖ チェックをリセット</button>
+    </div>
     <div id="aw-save-msg" style="display:none;margin-top:8px"></div>
   </div>
 </div>
@@ -392,57 +444,36 @@ const PRESET_DISHES={
   {"target":"父・兄（2人分）","menu":"鶏むね肉とほうれん草のクリーム煮","genre":"洋食","time":"28分","category":"肉メイン","ingredients":[{"n":"鶏むね肉","a":"350g"},{"n":"ほうれん草","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ほうれん草を食べやすい大きさに切る","フライパンに油を熱し鶏むね肉を炒める","ほうれん草を加えて炒め合わせる","牛乳200ml・コンソメ1個・薄力粉大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":""},
   {"target":"父・兄（2人分）","menu":"鶏もも肉のねぎ塩炒め","genre":"中華","time":"28分","category":"肉メイン","ingredients":[{"n":"鶏もも肉","a":"350g"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["長ねぎを食べやすい大きさに切る","フライパンに油を熱し鶏もも肉を炒める","長ねぎを加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々・ごま油小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
   {"target":"父・兄（2人分）","menu":"鶏むね肉とトマトのバジル炒め","genre":"洋食","time":"28分","category":"肉メイン","ingredients":[{"n":"鶏むね肉","a":"350g"},{"n":"トマト","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["トマトを食べやすい大きさに切る","フライパンに油を熱し鶏むね肉を炒める","トマトを加えて炒め合わせる","乾燥バジル小さじ1・コンソメ1個を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉と玉ねぎのすき焼き風煮","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","玉ねぎを加えて炒め合わせる","みりん大さじ3・めんつゆ大さじ2を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とごぼうのしぐれ煮","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"ごぼう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ごぼうを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","ごぼうを加えて炒め合わせる","しょうゆ大さじ2・みりん大さじ2・砂糖大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とピーマンの細切り炒め","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"ピーマン","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ピーマンを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","ピーマンを加えて炒め合わせる","オイスターソース大さじ1・しょうゆ小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉と白菜の中華煮","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"白菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜を食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","白菜を加えて炒め合わせる","鶏がらスープの素小さじ2・水200mlを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とアスパラのオイスター炒め","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"アスパラ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["アスパラを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","アスパラを加えて炒め合わせる","オイスターソース大さじ1.5を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉と長ねぎの塩炒め","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["長ねぎを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","長ねぎを加えて炒め合わせる","鶏がらスープの素小さじ2・ごま油小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とトマトの炒め物","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"トマト","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["トマトを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","トマトを加えて炒め合わせる","オイスターソース大さじ1・卵2個を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とキャベツのプルコギ風","genre":"韓国風","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"キャベツ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","キャベツを加えて炒め合わせる","しょうゆ大さじ2・みりん大さじ1・コチュジャン小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉と大根の煮物","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"大根","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根を食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","大根を加えて炒め合わせる","しょうゆ大さじ2・みりん大さじ2・水200mlを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とパプリカの黒胡椒炒め","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"パプリカ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["パプリカを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","パプリカを加えて炒め合わせる","オイスターソース大さじ1・黒こしょう少々を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とエリンギのバター醤油","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"エリンギ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["エリンギを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","エリンギを加えて炒め合わせる","バター15g・しょうゆ大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とブロッコリーの中華炒め","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"ブロッコリー","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ブロッコリーを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","ブロッコリーを加えて炒め合わせる","オイスターソース大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉ともやしのうま辛炒め","genre":"韓国風","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"もやし","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["もやしを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","もやしを加えて炒め合わせる","コチュジャン小さじ1・しょうゆ大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とれんこんのきんぴら","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"れんこん","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["れんこんを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","れんこんを加えて炒め合わせる","しょうゆ大さじ1.5・みりん大さじ1.5を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉となすの甘辛炒め","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"なす","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["なすを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","なすを加えて炒め合わせる","しょうゆ大さじ1.5・みりん大さじ1・砂糖小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉と小松菜のオイスター炒め","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"小松菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["小松菜を食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","小松菜を加えて炒め合わせる","オイスターソース大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉と玉ねぎの甘辛丼の具","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","玉ねぎを加えて炒め合わせる","しょうゆ大さじ2・みりん大さじ2・砂糖大さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とごぼうの柳川風","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"ごぼう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ごぼうを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","ごぼうを加えて炒め合わせる","めんつゆ大さじ2・卵2個・水100mlを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とにらの炒め物","genre":"中華","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"にら","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["にらを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","にらを加えて炒め合わせる","オイスターソース大さじ1・しょうゆ小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"父・兄（2人分）","menu":"牛肉とキャベツの味噌炒め","genre":"和食","time":"25分","category":"肉メイン","ingredients":[{"n":"牛薄切り肉","a":"300g"},{"n":"キャベツ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツを食べやすい大きさに切る","フライパンに油を熱し牛肉を炒める","キャベツを加えて炒め合わせる","味噌大さじ1.5・みりん大さじ1・砂糖小さじ1を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
-  {"target":"母（1人分）","menu":"さばの味噌煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さばの味噌煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さばの水煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さばの水煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さばの醤油煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さばの醤油煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さばのカレー煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さばのカレー煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さばのトマト煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さばのトマト煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さばのレモン煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さばのレモン煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さんまの蒲焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さんまの蒲焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さんまの煮付けレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さんまの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"さんまの塩焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"さんまの塩焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"いわしの煮付けレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"いわしの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"いわしの蒲焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"いわしの蒲焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"いわしの梅煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"いわしの梅煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"鮭の西京焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"鮭の西京焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"鮭の照り焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"鮭の照り焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"鮭の塩焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"鮭の塩焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"ぶりの照り焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"ぶりの照り焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"ぶりの幽庵焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"ぶりの幽庵焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"ぶりの味噌煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"ぶりの味噌煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"たらの西京焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"たらの西京焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"たらの煮付けレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"たらの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"かれいの煮付けレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"かれいの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"あじの開きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"あじの開き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"ほっけの焼きレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"ほっけ（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"金目鯛の煮付けレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"金目鯛の煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"かつおのたたきレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"かつおのたたき（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"えびの塩ゆでレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"えびの塩ゆで（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"えびのうま煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"えびのうま煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"ほたての煮物レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"ほたての煮物（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"あさりの酒蒸しレトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"あさりの酒蒸し（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"母（1人分）","menu":"かにの甘煮レトルト","genre":"和食","time":"5分","category":"焼き魚","ingredients":[{"n":"かに（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（焼き魚）"},
-  {"target":"父・兄（2人分）","menu":"おでん風煮物","genre":"和食","time":"30分","category":"肉メイン","ingredients":[{"n":"大根","a":"適量"},{"n":"こんにゃく","a":"適量"},{"n":"厚揚げ","a":"適量"},{"n":"練り物（ちくわ等）","a":"適量"},{"n":"めんつゆ","a":"大さじ3"},{"n":"水","a":"500ml"}],"steps":["大根・こんにゃくを食べやすい大きさに切る","鍋に水とめんつゆを入れて煮立てる","大根・こんにゃく・厚揚げ・練り物を加える","弱火で20分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":""}
+  {"target":"母（1人分）","menu":"さばの味噌煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さばの味噌煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さばの水煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さばの水煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さばの醤油煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さばの醤油煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さばのカレー煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さばのカレー煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さばのトマト煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さばのトマト煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さばのレモン煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さばのレモン煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さんまの蒲焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さんまの蒲焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さんまの煮付けレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さんまの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"さんまの塩焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"さんまの塩焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"いわしの煮付けレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"いわしの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"いわしの蒲焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"いわしの蒲焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"いわしの梅煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"いわしの梅煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"鮭の西京焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"鮭の西京焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"鮭の照り焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"鮭の照り焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"鮭の塩焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"鮭の塩焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"ぶりの照り焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"ぶりの照り焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"ぶりの幽庵焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"ぶりの幽庵焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"ぶりの味噌煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"ぶりの味噌煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"たらの西京焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"たらの西京焼き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"たらの煮付けレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"たらの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"かれいの煮付けレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"かれいの煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"あじの開きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"あじの開き（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"ほっけの焼きレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"ほっけ（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"金目鯛の煮付けレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"金目鯛の煮付け（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"かつおのたたきレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"かつおのたたき（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"えびの塩ゆでレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"えびの塩ゆで（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"えびのうま煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"えびのうま煮（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"ほたての煮物レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"ほたての煮物（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"あさりの酒蒸しレトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"あさりの酒蒸し（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
+  {"target":"母（1人分）","menu":"かにの甘煮レトルト","genre":"和食","time":"5分","category":"レトルト魚料理","ingredients":[{"n":"かに（レトルト）","a":"1袋"}],"steps":["袋ごと湯煎で3〜5分加熱する（または電子レンジで加熱）","器に盛る"],"equipment":["鍋（湯煎用）または電子レンジ","器"],"note":"母用（レトルト魚料理）"},
 ],
 "火":[
   {"target":"3人分","menu":"エビチリ","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","長ねぎを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","豆板醤小さじ1・ケチャップ大さじ3・鶏がらスープの素小さじ1・水100ml・水溶き片栗粉適量を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
@@ -495,56 +526,6 @@ const PRESET_DISHES={
   {"target":"3人分","menu":"エビと小松菜の中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"小松菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","小松菜を食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1.5を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
   {"target":"3人分","menu":"エビと玉ねぎのケチャップ炒め（にら入り）","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"にら","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","にらを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","ケチャップ大さじ3・ウスターソース大さじ1を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
   {"target":"3人分","menu":"エビと玉ねぎの塩炒め","genre":"韓国風","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","玉ねぎを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","ごま油大さじ1・鶏がらスープの素小さじ1・すりごま大さじ1で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとズッキーニのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ズッキーニ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ズッキーニを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","カレー粉大さじ1・コンソメ1個で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとマッシュルームの塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"マッシュルーム","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","マッシュルームを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとピーマンの中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ピーマン","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ピーマンを食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・鶏がらスープの素小さじ1・水150mlを加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビともやしのクリーム煮","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"もやし","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","もやしを食べやすい大きさに切る","フライパンにバターを溶かし野菜を炒める","薄力粉を加えて炒め粉っぽさをなくす","ホールトマト缶1/2缶・コンソメ1個を加えてとろみがつくまで煮る","エビを加えて3分煮て味をととのえる"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとなすの塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"なす","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","なすを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとセロリのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"セロリ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","セロリを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","にんにく（チューブ）小さじ1・バター10gで味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとカリフラワーの和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"カリフラワー","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","カリフラワーを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","めんつゆ大さじ2・バター10gで味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとコーン缶の和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"コーン缶","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","コーン缶を食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","めんつゆ大さじ1.5で味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと厚揚げの和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"厚揚げ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","厚揚げを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","しょうゆ大さじ1・みりん大さじ1で味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとチンゲン菜の中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"チンゲン菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","チンゲン菜を食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・鶏がらスープの素小さじ1を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビチリ（長ねぎ入り）","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","長ねぎを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","豆板醤小さじ1・ケチャップ大さじ3・鶏がらスープの素小さじ1・水100ml・水溶き片栗粉適量を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビマヨ（ブロッコリー入り）","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ブロッコリー","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ブロッコリーを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えてさっと炒める","火を止めマヨネーズ大さじ3・ケチャップ大さじ1・牛乳小さじ2を加えて和える"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと白菜の塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"白菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","白菜を食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々・ごま油小さじ1で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとアスパラのクリーム煮","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"アスパラ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","アスパラを食べやすい大きさに切る","フライパンにバターを溶かし野菜を炒める","薄力粉を加えて炒め粉っぽさをなくす","牛乳200ml・コンソメ1個・薄力粉大さじ2・バター15gを加えてとろみがつくまで煮る","エビを加えて3分煮て味をととのえる"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとパプリカのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"パプリカ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","パプリカを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","にんにく（チューブ）小さじ2・バター15g・塩こしょう少々で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとキャベツの中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"キャベツ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","キャベツを食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","鶏がらスープの素小さじ2・オイスターソース大さじ1・水200ml・水溶き片栗粉適量を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとほうれん草の中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ほうれん草","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ほうれん草を食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・鶏がらスープの素小さじ1を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと小松菜のガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"小松菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","小松菜を食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","にんにく（チューブ）小さじ1・乾燥バジル小さじ1・コンソメ1個で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとにらの和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"にら","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","にらを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","めんつゆ大さじ2で味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとパプリカの甘酢炒め（玉ねぎ入り）","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","玉ねぎを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","ケチャップ大さじ2・酢大さじ1・砂糖大さじ1・水溶き片栗粉適量を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとズッキーニのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ズッキーニ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ズッキーニを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","バター15g・にんにく（チューブ）小さじ1・塩こしょう少々で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとアボカドのマヨサラダ炒め（マッシュルーム入り）","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"マッシュルーム","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","マッシュルームを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えてさっと炒める","火を止めマヨネーズ大さじ2・レモン汁小さじ1を加えて和える"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとピーマンのクリーム煮","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ピーマン","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ピーマンを食べやすい大きさに切る","フライパンにバターを溶かし野菜を炒める","薄力粉を加えて炒め粉っぽさをなくす","ホールトマト缶1/2缶・コンソメ1個を加えてとろみがつくまで煮る","エビを加えて3分煮て味をととのえる"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビともやしの中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"もやし","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","もやしを食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・しょうゆ小さじ1を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとなすのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"なす","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","なすを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","バター15g・塩こしょう少々で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとセロリの塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"セロリ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","セロリを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとカリフラワーのクリーム煮","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"カリフラワー","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","カリフラワーを食べやすい大きさに切る","フライパンにバターを溶かし野菜を炒める","薄力粉を加えて炒め粉っぽさをなくす","牛乳200ml・コンソメ1個・薄力粉大さじ2を加えてとろみがつくまで煮る","エビを加えて3分煮て味をととのえる"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとコーン缶の中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"コーン缶","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","コーン缶を食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1.5を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと玉ねぎのケチャップ炒め（厚揚げ入り）","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"厚揚げ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","厚揚げを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","ケチャップ大さじ3・ウスターソース大さじ1を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとチンゲン菜の塩炒め","genre":"韓国風","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"チンゲン菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","チンゲン菜を食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","ごま油大さじ1・鶏がらスープの素小さじ1・すりごま大さじ1で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと長ねぎのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","長ねぎを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","カレー粉大さじ1・コンソメ1個で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとブロッコリーの塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ブロッコリー","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ブロッコリーを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと白菜の中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"白菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","白菜を食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・鶏がらスープの素小さじ1・水150mlを加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとアスパラのクリーム煮","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"アスパラ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","アスパラを食べやすい大きさに切る","フライパンにバターを溶かし野菜を炒める","薄力粉を加えて炒め粉っぽさをなくす","ホールトマト缶1/2缶・コンソメ1個を加えてとろみがつくまで煮る","エビを加えて3分煮て味をととのえる"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとパプリカの塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"パプリカ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","パプリカを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとキャベツのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"キャベツ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","キャベツを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","にんにく（チューブ）小さじ1・バター10gで味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとほうれん草の和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ほうれん草","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ほうれん草を食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","めんつゆ大さじ2・バター10gで味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと小松菜の和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"小松菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","小松菜を食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","めんつゆ大さじ1.5で味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとにらの和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"にら","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","にらを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","しょうゆ大さじ1・みりん大さじ1で味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと玉ねぎの中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","玉ねぎを食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・鶏がらスープの素小さじ1を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビチリ（ズッキーニ入り）","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ズッキーニ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ズッキーニを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","豆板醤小さじ1・ケチャップ大さじ3・鶏がらスープの素小さじ1・水100ml・水溶き片栗粉適量を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビマヨ（マッシュルーム入り）","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"マッシュルーム","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","マッシュルームを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えてさっと炒める","火を止めマヨネーズ大さじ3・ケチャップ大さじ1・牛乳小さじ2を加えて和える"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとピーマンの塩炒め","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"ピーマン","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","ピーマンを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","鶏がらスープの素小さじ2・塩こしょう少々・ごま油小さじ1で味をととのえる","ごま油で香りづけして完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビともやしのクリーム煮","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"もやし","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","もやしを食べやすい大きさに切る","フライパンにバターを溶かし野菜を炒める","薄力粉を加えて炒め粉っぽさをなくす","牛乳200ml・コンソメ1個・薄力粉大さじ2・バター15gを加えてとろみがつくまで煮る","エビを加えて3分煮て味をととのえる"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとなすのガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"なす","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","なすを食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","にんにく（チューブ）小さじ2・バター15g・塩こしょう少々で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとセロリの中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"セロリ","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","セロリを食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","鶏がらスープの素小さじ2・オイスターソース大さじ1・水200ml・水溶き片栗粉適量を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとカリフラワーの中華","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"カリフラワー","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"しょうが（チューブ）","a":"小さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","カリフラワーを食べやすい大きさに切る","フライパンに油としょうがを熱しエビを炒める","野菜を加えて炒める","オイスターソース大さじ1・鶏がらスープの素小さじ1を加えて煮絡める"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとコーン缶のガーリック","genre":"洋食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"コーン缶","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"にんにく（チューブ）","a":"小さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","コーン缶を食べやすい大きさに切る","フライパンに油とにんにくを弱火で熱し香りを出す","強火にしてエビを炒める","野菜を加えて炒め合わせる","にんにく（チューブ）小さじ1・乾燥バジル小さじ1・コンソメ1個で味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビと厚揚げの和風","genre":"和食","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"厚揚げ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","厚揚げを食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒め合わせる","めんつゆ大さじ2で味をととのえる","全体になじませて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"むきエビ（冷凍）を使用"},
-  {"target":"3人分","menu":"エビとパプリカの甘酢炒め（チンゲン菜入り）","genre":"中華","time":"22分","category":"海老料理","ingredients":[{"n":"むきエビ（冷凍）","a":"250g"},{"n":"チンゲン菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"},{"n":"片栗粉","a":"小さじ2"}],"steps":["むきエビ（冷凍）を解凍し水気をよく拭く","チンゲン菜を食べやすい大きさに切る","フライパンに油を熱しエビを炒める","野菜を加えて炒める","ケチャップ大さじ2・酢大さじ1・砂糖大さじ1・水溶き片栗粉適量を加えて煮立てる","とろみがついたら完成"],"equipment":["フライパン（蓋付き）","木べら","包丁","まな板"],"note":"むきエビ（冷凍）を使用"}
 ],
 "水":[
   {"target":"3人分","menu":"Cook Do 麻婆豆腐用","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 麻婆豆腐用","a":"1箱"},{"n":"絹ごし豆腐","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["絹ごし豆腐を食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 麻婆豆腐用のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"肉なしバージョン"},
@@ -568,35 +549,35 @@ const PRESET_DISHES={
   {"target":"3人分","menu":"ハウス ジャワカレー（中辛）","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス ジャワカレー（中辛）","a":"1箱"},{"n":"なす","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"トマト","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["なす、玉ねぎ、トマトを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス ジャワカレー（中辛）（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜カレー"},
   {"target":"3人分","menu":"ハウス 完熟トマトのハヤシライスソース","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス 完熟トマトのハヤシライスソース","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"マッシュルーム","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、マッシュルームを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス 完熟トマトのハヤシライスソース（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜ハヤシ"},
   {"target":"3人分","menu":"ハウス クリームシチュー（コーン）","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス クリームシチュー（コーン）","a":"1箱"},{"n":"白菜","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"コーン缶","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、コーン缶を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス クリームシチュー（コーン）（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜のクリーム煮に"},
-  {"target":"3人分","menu":"S&B 本挽きカレー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B 本挽きカレー","a":"1箱"},{"n":"じゃがいも","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"なす","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["じゃがいも、玉ねぎ、なすを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B 本挽きカレー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜カレー"},
   {"target":"3人分","menu":"S&B ゴールデンカレー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B ゴールデンカレー","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"むきエビ（冷凍）","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、むきエビ（冷凍）を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B ゴールデンカレー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"シーフードカレー風"},
-  {"target":"3人分","menu":"S&B とろけるカレー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B とろけるカレー","a":"1箱"},{"n":"じゃがいも","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"パプリカ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["じゃがいも、玉ねぎ、パプリカを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B とろけるカレー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜カレー"},
-  {"target":"3人分","menu":"S&B 予約でいっぱいの店のスパイスカレー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B 予約でいっぱいの店のスパイスカレー","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"トマト","a":"適量"},{"n":"ほうれん草","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、トマト、ほうれん草を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B 予約でいっぱいの店のスパイスカレー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜スパイスカレー"},
-  {"target":"3人分","menu":"S&B ディナーカレー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B ディナーカレー","a":"1箱"},{"n":"じゃがいも","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["じゃがいも、にんじん、玉ねぎを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B ディナーカレー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜カレー"},
   {"target":"3人分","menu":"Cook Do 中華 麻辣麻婆豆腐用","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 中華 麻辣麻婆豆腐用","a":"1箱"},{"n":"絹ごし豆腐","a":"適量"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["絹ごし豆腐、長ねぎを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 中華 麻辣麻婆豆腐用のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"肉なしバージョン"},
   {"target":"3人分","menu":"Cook Do きょうの大皿 鶏としめじ用","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do きょうの大皿 鶏としめじ用","a":"1箱"},{"n":"鶏もも肉","a":"適量"},{"n":"しめじ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["鶏もも肉、しめじを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do きょうの大皿 鶏としめじ用のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"表示通り（父兄向け、母は別途焼き魚）"},
   {"target":"3人分","menu":"Cook Do 香味ペースト中華炒め","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 香味ペースト中華炒め","a":"1箱"},{"n":"キャベツ","a":"適量"},{"n":"もやし","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、もやし、にんじんを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 香味ペースト中華炒めのソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"野菜炒めに"},
   {"target":"3人分","menu":"丸美屋 麻婆なすの素（大辛）","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"丸美屋 麻婆なすの素（大辛）","a":"1箱"},{"n":"なす","a":"適量"},{"n":"ピーマン","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["なす、ピーマンを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","丸美屋 麻婆なすの素（大辛）のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"肉なしバージョン"},
-  {"target":"3人分","menu":"ハウス シチューオンライス（チキン）","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス シチューオンライス（チキン）","a":"1箱"},{"n":"白菜","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、玉ねぎを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス シチューオンライス（チキン）（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜のクリーム煮"},
   {"target":"3人分","menu":"ハウス 完熟トマトのオムライスソース","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス 完熟トマトのオムライスソース","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"卵","a":"適量"},{"n":"ごはん","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、卵、ごはんを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","ハウス 完熟トマトのオムライスソースのソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"オムライスに"},
-  {"target":"3人分","menu":"S&B おうちレストラン クリームシチュー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B おうちレストラン クリームシチュー","a":"1箱"},{"n":"じゃがいも","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"ブロッコリー","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["じゃがいも、にんじん、ブロッコリーを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B おうちレストラン クリームシチュー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜シチュー"},
   {"target":"3人分","menu":"Cook Do 干焼蝦仁（エビチリ）用","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 干焼蝦仁（エビチリ）用","a":"1箱"},{"n":"むきエビ（冷凍）","a":"適量"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["むきエビ（冷凍）、長ねぎを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 干焼蝦仁（エビチリ）用のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
   {"target":"3人分","menu":"丸美屋 直火焙煎 麻婆豆腐","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"丸美屋 直火焙煎 麻婆豆腐","a":"1箱"},{"n":"絹ごし豆腐","a":"適量"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["絹ごし豆腐、長ねぎを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","丸美屋 直火焙煎 麻婆豆腐のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"肉なしバージョン"},
-  {"target":"3人分","menu":"ハウス カレーマルシェ（中辛）","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス カレーマルシェ（中辛）","a":"1箱"},{"n":"ごはん","a":"適量"},{"n":"温野菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ごはん、温野菜を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス カレーマルシェ（中辛）（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"レンジで温めてかけるだけ"},
-  {"target":"3人分","menu":"S&B 濃いシチュー（クリーム）","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B 濃いシチュー（クリーム）","a":"1箱"},{"n":"白菜","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"コーン缶","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、コーン缶を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B 濃いシチュー（クリーム）（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"野菜のクリーム煮"},
   {"target":"3人分","menu":"Cook Do 回鍋肉用（追加）","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 回鍋肉用（追加）","a":"1箱"},{"n":"キャベツ","a":"適量"},{"n":"もやし","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、もやしを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 回鍋肉用（追加）のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"肉なしバージョン"},
   {"target":"3人分","menu":"丸美屋 とりそぼろ風味付け（野菜炒め用）","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"丸美屋 とりそぼろ風味付け（野菜炒め用）","a":"1箱"},{"n":"キャベツ","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"卵","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、にんじん、卵を食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","丸美屋 とりそぼろ風味付け（野菜炒め用）のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"ひき肉なし・卵でかさ増し"},
   {"target":"3人分","menu":"ハウス 完熟トマトのハッシュドビーフ","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス 完熟トマトのハッシュドビーフ","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"マッシュルーム","a":"適量"},{"n":"ウインナー","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、マッシュルーム、ウインナーを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス 完熟トマトのハッシュドビーフ（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"ウインナーで"},
   {"target":"3人分","menu":"S&B シーズニング ガパオ風","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B シーズニング ガパオ風","a":"1箱"},{"n":"ピーマン","a":"適量"},{"n":"パプリカ","a":"適量"},{"n":"卵","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ピーマン、パプリカ、卵を食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","S&B シーズニング ガパオ風のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"ひき肉なし・厚揚げと卵で"},
   {"target":"3人分","menu":"Cook Do オイスターソース青菜炒め用","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do オイスターソース青菜炒め用","a":"1箱"},{"n":"チンゲン菜","a":"適量"},{"n":"小松菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["チンゲン菜、小松菜を食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do オイスターソース青菜炒め用のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"青菜炒め"},
   {"target":"3人分","menu":"丸美屋 麻婆豆腐の素（甘口）","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"丸美屋 麻婆豆腐の素（甘口）","a":"1箱"},{"n":"絹ごし豆腐","a":"適量"},{"n":"長ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["絹ごし豆腐、長ねぎを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","丸美屋 麻婆豆腐の素（甘口）のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"肉なしバージョン・お子様向け"},
-  {"target":"3人分","menu":"ハウス 北海道チャウダー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス 北海道チャウダー","a":"1箱"},{"n":"じゃがいも","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"むきエビ（冷凍）","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["じゃがいも、玉ねぎ、むきエビ（冷凍）を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス 北海道チャウダー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"クラムチャウダー風"},
-  {"target":"3人分","menu":"S&B カレーの王子さま（甘口）","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B カレーの王子さま（甘口）","a":"1箱"},{"n":"じゃがいも","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"玉ねぎ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["じゃがいも、にんじん、玉ねぎを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B カレーの王子さま（甘口）（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"甘口野菜カレー"},
   {"target":"3人分","menu":"Cook Do 八宝菜用（追加）","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 八宝菜用（追加）","a":"1箱"},{"n":"白菜","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"うずら卵（水煮缶）","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、うずら卵（水煮缶）を食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 八宝菜用（追加）のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"野菜のみ版"},
   {"target":"3人分","menu":"丸美屋 中華名菜 酢豚","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"丸美屋 中華名菜 酢豚","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"パプリカ","a":"適量"},{"n":"厚揚げ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、パプリカ、厚揚げを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","丸美屋 中華名菜 酢豚のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"豚肉のかわりに厚揚げで"},
-  {"target":"3人分","menu":"ハウス プロクオリティ ビーフカレー","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"ハウス プロクオリティ ビーフカレー","a":"1箱"},{"n":"ごはん","a":"適量"},{"n":"温野菜","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ごはん、温野菜を切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めハウス プロクオリティ ビーフカレー（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"レンジで温めるだけ"},
-  {"target":"3人分","menu":"S&B 赤いキッチン キーマカレーの素","genre":"洋食","time":"20分","category":"レトルト調味料","ingredients":[{"n":"S&B 赤いキッチン キーマカレーの素","a":"1箱"},{"n":"玉ねぎ","a":"適量"},{"n":"なす","a":"適量"},{"n":"厚揚げ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、なす、厚揚げを切る","鍋に油を熱し野菜を炒める","水を加えて野菜が柔らかくなるまで煮る","火を止めS&B 赤いキッチン キーマカレーの素（ルウ）を割り入れて溶かす","弱火でとろみがつくまで煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"ひき肉なし・厚揚げで"},
   {"target":"3人分","menu":"Cook Do 担々麺用ソース（汁なし和え）","genre":"中華","time":"20分","category":"レトルト調味料","ingredients":[{"n":"Cook Do 担々麺用ソース（汁なし和え）","a":"1箱"},{"n":"ゆで麺","a":"適量"},{"n":"チンゲン菜","a":"適量"},{"n":"もやし","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ゆで麺、チンゲン菜、もやしを食べやすい大きさに切る","フライパンに油を熱し野菜を炒める","Cook Do 担々麺用ソース（汁なし和え）のソース（または素）を加える","全体に絡めながら表示時間どおり加熱して完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"ひき肉なし・野菜で"},
+  {"target":"3人分","menu":"ヤマモリ 炊き込みご飯の素（鶏五目）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"ヤマモリ 炊き込みご飯の素（鶏五目）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"鶏もも肉","a":"適量"},{"n":"ごぼう","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"こんにゃく","a":"適量"},{"n":"油揚げ","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"ヤマモリ 炊き込みご飯の素（きのこ）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"ヤマモリ 炊き込みご飯の素（きのこ）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"しめじ","a":"適量"},{"n":"えのき","a":"適量"},{"n":"まいたけ","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"永谷園 炊き込みご飯の素（松茸）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"永谷園 炊き込みご飯の素（松茸）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"松茸（または舞茸）","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"永谷園 炊き込みご飯の素（山菜）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"永谷園 炊き込みご飯の素（山菜）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"山菜（水煮パック）","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"丸美屋 炊き込みご飯の素（五目）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"丸美屋 炊き込みご飯の素（五目）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"にんじん","a":"適量"},{"n":"ごぼう","a":"適量"},{"n":"こんにゃく","a":"適量"},{"n":"油揚げ","a":"適量"},{"n":"しいたけ","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"丸美屋 炊き込みご飯の素（チキン）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"丸美屋 炊き込みご飯の素（チキン）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"鶏もも肉","a":"適量"},{"n":"玉ねぎ","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"創味 炊き込みご飯の素（和風だし）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"創味 炊き込みご飯の素（和風だし）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"他残り野菜","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"ミツカン 炊き込みご飯の素（鶏だし）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"ミツカン 炊き込みご飯の素（鶏だし）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"鶏もも肉","a":"適量"},{"n":"ねぎ","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"ハウス 炊き込みご飯の素（しょうゆ味）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"ハウス 炊き込みご飯の素（しょうゆ味）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"他残り野菜","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"ヤマモリ 炊き込みご飯の素（さんま）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"ヤマモリ 炊き込みご飯の素（さんま）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"さんま（缶詰）","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"永谷園 炊き込みご飯の素（栗）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"永谷園 炊き込みご飯の素（栗）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"栗（甘露煮）","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
+  {"target":"3人分","menu":"キューピー 炊き込みご飯の素（たこ）","genre":"和食","time":"60分（炊飯時間含む）","category":"レトルト調味料","ingredients":[{"n":"キューピー 炊き込みご飯の素（たこ）","a":"1袋"},{"n":"米2合","a":"適量"},{"n":"たこ（ボイル）","a":"適量"}],"steps":["炊飯器に米と規定量の水を入れる","具材と炊き込みご飯の素を加える","通常モードで炊く","炊き上がったらよく混ぜて完成"],"equipment":["炊飯器"],"note":""},
   {"target":"3人分","menu":"鮭と野菜のホイル焼き","genre":"和食","time":"25分","category":"魚料理","ingredients":[{"n":"鮭切り身","a":"3切れ"},{"n":"玉ねぎ","a":"適量"},{"n":"ピーマン","a":"適量"},{"n":"エリンギ","a":"適量"},{"n":"バター","a":"適量"},{"n":"ポン酢","a":"適量"}],"steps":["玉ねぎ、ピーマン、エリンギを食べやすく切る","アルミホイルに野菜を敷き魚をのせる","バター・ポン酢をのせて包む","フライパンに水を張り蓋をして15分蒸し焼き","火が通ったら完成"],"equipment":["フライパン（大）","アルミホイル","包丁","まな板"],"note":""},
   {"target":"3人分","menu":"真鱈のムニエル","genre":"洋食","time":"25分","category":"魚料理","ingredients":[{"n":"タラ切り身","a":"3切れ"},{"n":"玉ねぎ","a":"適量"},{"n":"ブロッコリー","a":"適量"},{"n":"バター","a":"適量"},{"n":"薄力粉","a":"適量"},{"n":"レモン汁","a":"適量"}],"steps":["タラに塩こしょうし薄力粉をまぶす","玉ねぎ、ブロッコリーを切る","フライパンで魚を中火で両面焼き取り出す","同じフライパンで野菜を炒めバター・薄力粉・レモン汁でソースを作る","ソースをかけて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":""},
   {"target":"3人分","menu":"鯛のアクアパッツァ風","genre":"洋食","time":"25分","category":"魚料理","ingredients":[{"n":"鯛切り身","a":"3切れ"},{"n":"トマト","a":"適量"},{"n":"ピーマン","a":"適量"},{"n":"オリーブ（缶）","a":"適量"},{"n":"にんにく","a":"適量"},{"n":"白ワイン","a":"適量"},{"n":"コンソメ","a":"適量"}],"steps":["トマト、ピーマン、オリーブ（缶）を切る","鍋に鯛と野菜を並べる","にんにく・白ワイン・コンソメと水を加えて煮立てる","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":""},
@@ -699,56 +680,6 @@ const PRESET_DISHES={
   {"target":"3人分","menu":"オイマヨ炒め","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"オイスターソース","a":"適量"},{"n":"マヨネーズ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ブロッコリー、パプリカ、玉ねぎを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","オイスターソース、マヨネーズを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
   {"target":"3人分","menu":"白だし煮","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"白だし","a":"適量"},{"n":"水","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、小松菜を切る","鍋に油を熱し野菜を炒める","白だし、水と水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
   {"target":"3人分","menu":"炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、にんじん、ピーマンを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","鶏がらスープの素、塩こしょう、ごま油を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"コンソメスープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、キャベツを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","コンソメ、塩こしょうを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"味噌汁（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"味噌","a":"適量"},{"n":"だしの素","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、長ねぎ、豆腐を食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","味噌、だしの素を加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"煮浸し（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"めんつゆ","a":"適量"},{"n":"水","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["小松菜、にんじん、油揚げを切る","鍋に油を熱し野菜を炒める","めんつゆ、水と水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"中華スープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、卵を食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","鶏がらスープの素、ごま油を加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"ミネストローネ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"ホールトマト缶","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、トマト、キャベツを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","ホールトマト缶、コンソメを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"ラタトゥイユ（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"にんにく","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["なす、ズッキーニ、トマト、玉ねぎを切る","鍋に油を熱し野菜を炒める","にんにく、コンソメと水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"卵とじ（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"めんつゆ","a":"適量"},{"n":"水","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、ほうれん草、卵を切る","フライパンに油を熱し野菜を炒める","めんつゆ、水を加えて炒め煮にする","味がなじんだら完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"蒸し野菜サラダ（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"ポン酢","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ブロッコリー、にんじん、かぼちゃを切る","耐熱容器または鍋に並べる","少量の水を加え蓋をして蒸す","火が通ったらポン酢、ごま油をかけて完成"],"equipment":["蒸し器 または 鍋","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"和風炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"めんつゆ","a":"適量"},{"n":"かつお節","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、もやし、ピーマンを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","めんつゆ、かつお節を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"カレースープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"カレー粉","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、じゃがいもを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","カレー粉、コンソメを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"塩昆布あえ炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"塩昆布","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、きゅうり、にんじんを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","塩昆布、ごま油を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"オイスター炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"オイスターソース","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["チンゲン菜、パプリカ、しめじを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","オイスターソースを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"クリームスープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"牛乳","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"薄力粉","a":"適量"},{"n":"バター","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、ブロッコリーを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","牛乳、コンソメ、薄力粉、バターを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"卵スープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["長ねぎ、わかめ、卵を食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","鶏がらスープの素、ごま油を加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"きんぴら（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"しょうゆ","a":"適量"},{"n":"みりん","a":"適量"},{"n":"砂糖","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ごぼう、にんじん、れんこんを切る","フライパンに油を熱し野菜を炒める","しょうゆ、みりん、砂糖を加えて炒め煮にする","味がなじんだら完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"煮物（うま煮）（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"めんつゆ","a":"適量"},{"n":"水","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、しいたけ、厚揚げを切る","鍋に油を熱し野菜を炒める","めんつゆ、水と水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"チャプチェ風（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"しょうゆ","a":"適量"},{"n":"みりん","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["にんじん、ピーマン、玉ねぎ、春雨を切る","フライパンに油を熱し野菜を炒める","しょうゆ、みりん、ごま油を加えて炒め煮にする","味がなじんだら完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"トマト煮込み（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"ホールトマト缶","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、なす、パプリカを切る","鍋に油を熱し野菜を炒める","ホールトマト缶、コンソメと水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"バター炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"バター","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["コーン缶、玉ねぎ、ほうれん草を食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","バター、塩こしょうを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"味噌炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"味噌","a":"適量"},{"n":"みりん","a":"適量"},{"n":"砂糖","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、なす、ピーマンを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","味噌、みりん、砂糖を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"春雨スープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、春雨を食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","鶏がらスープの素、ごま油を加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"粕汁風スープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"味噌","a":"適量"},{"n":"だしの素","a":"適量"},{"n":"牛乳少々","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、長ねぎを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","味噌、だしの素、牛乳少々を加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"オムレツ（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、ピーマン、トマト、卵を切る","フライパンに油を熱し野菜を炒める","コンソメ、塩こしょうを加えて炒め煮にする","味がなじんだら完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"中華あんかけ（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"水溶き片栗粉","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、しいたけを切る","鍋で野菜を炒め水を加えて煮る","鶏がらスープの素、水溶き片栗粉で味をととのえる","水溶き片栗粉でとろみをつけて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"蒸し煮（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"バター","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、玉ねぎ、にんじんを切る","耐熱容器または鍋に並べる","少量の水を加え蓋をして蒸す","火が通ったらコンソメ、バターをかけて完成"],"equipment":["蒸し器 または 鍋","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"ごま味噌炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"味噌","a":"適量"},{"n":"すりごま","a":"適量"},{"n":"みりん","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["なす、ピーマン、玉ねぎを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","味噌、すりごま、みりんを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"スープカレー（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"カレー粉","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、なす、かぼちゃを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","カレー粉、コンソメを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"塩炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["もやし、にら、にんじんを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","鶏がらスープの素、塩こしょう、ごま油を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"煮びたし（だし）（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"めんつゆ","a":"適量"},{"n":"だしの素","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["なす、オクラ、ピーマンを切る","鍋に油を熱し野菜を炒める","めんつゆ、だしの素と水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"チーズ焼き（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"とろけるチーズ","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ブロッコリー、玉ねぎ、トマトを切る","耐熱容器または鍋に並べる","少量の水を加え蓋をして蒸す","火が通ったらとろけるチーズ、コンソメをかけて完成"],"equipment":["蒸し器 または 鍋","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"和風スープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"めんつゆ","a":"適量"},{"n":"だしの素","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、油揚げ、長ねぎを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","めんつゆ、だしの素を加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"ペペロンチーノ風炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"にんにく","a":"適量"},{"n":"オリーブオイル","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["キャベツ、ブロッコリー、玉ねぎを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","にんにく、オリーブオイル、塩こしょうを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"あんかけ豆腐（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"水溶き片栗粉","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["絹ごし豆腐、にんじん、しいたけを切る","鍋で野菜を炒め水を加えて煮る","鶏がらスープの素、水溶き片栗粉で味をととのえる","水溶き片栗粉でとろみをつけて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"卵炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["トマト、ピーマン、卵を食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","鶏がらスープの素、塩こしょうを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"中華風煮物（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"オイスターソース","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、厚揚げ、にんじんを切る","鍋に油を熱し野菜を炒める","オイスターソース、鶏がらスープの素と水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"コーンスープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"牛乳","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"バター","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、コーン缶を食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","牛乳、コンソメ、バターを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"ガーリック炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"にんにく","a":"適量"},{"n":"オリーブオイル","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["アスパラ、パプリカ、玉ねぎを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","にんにく、オリーブオイル、塩こしょうを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"甘酢炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"ケチャップ","a":"適量"},{"n":"酢","a":"適量"},{"n":"砂糖","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["パプリカ、玉ねぎ、ピーマンを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","ケチャップ、酢、砂糖を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"蒸ししゃぶサラダ（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"ポン酢","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["レタス、にんじん、きゅうりを切る","耐熱容器または鍋に並べる","少量の水を加え蓋をして蒸す","火が通ったらポン酢、ごま油をかけて完成"],"equipment":["蒸し器 または 鍋","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"すまし汁（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"だしの素","a":"適量"},{"n":"しょうゆ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、三つ葉、豆腐を食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","だしの素、しょうゆを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"カレー炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"カレー粉","a":"適量"},{"n":"ウスターソース","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、なす、ピーマンを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","カレー粉、ウスターソースを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"クリーム煮（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"牛乳","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"薄力粉","a":"適量"},{"n":"バター","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、玉ねぎを切る","鍋に油を熱し野菜を炒める","牛乳、コンソメ、薄力粉、バターと水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"中華炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"オイスターソース","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["チンゲン菜、もやし、にんじんを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","オイスターソース、ごま油を加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"豆乳スープ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"豆乳","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["白菜、にんじん、玉ねぎを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","豆乳、コンソメを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"ポトフ（アレンジ）","genre":"洋食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"コンソメ","a":"適量"},{"n":"塩こしょう","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、キャベツ、ウインナーを食べやすい大きさに切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立てる","コンソメ、塩こしょうを加えて味をととのえる","野菜が柔らかくなったら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"チヂミ風（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"薄力粉","a":"適量"},{"n":"鶏がらスープの素","a":"適量"},{"n":"ごま油","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["にら、にんじん、玉ねぎ、卵を切る","フライパンに油を熱し野菜を炒める","薄力粉、鶏がらスープの素、ごま油を加えて炒め煮にする","味がなじんだら完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"オイマヨ炒め（アレンジ）","genre":"中華","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"オイスターソース","a":"適量"},{"n":"マヨネーズ","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["ブロッコリー、パプリカ、玉ねぎを食べやすい大きさに切る","フライパンに油を熱し火の通りにくい野菜から炒める","残りの野菜を加えて炒め合わせる","オイスターソース、マヨネーズを加えて全体に絡める","味をととのえて完成"],"equipment":["フライパン","菜箸","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"白だし煮（アレンジ）","genre":"和食","time":"20分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"白だし","a":"適量"},{"n":"水","a":"適量"},{"n":"サラダ油","a":"大さじ1"}],"steps":["大根、にんじん、小松菜を切る","鍋に油を熱し野菜を炒める","白だし、水と水を加える","落とし蓋をして15分煮込んで完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"カレー（残り食材）","genre":"洋食","time":"30分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"カレールー","a":"1〜2かけ"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、じゃがいもを一口大に切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立て、アクを取る","野菜が柔らかくなったらカレールーを加えて溶かす","とろみが出たら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"},
-  {"target":"3人分","menu":"シチュー（残り食材）","genre":"洋食","time":"30分","category":"残り食材活用","ingredients":[{"n":"他残り野菜","a":"適量"},{"n":"シチュールー","a":"1〜2かけ"},{"n":"牛乳","a":"200ml"},{"n":"サラダ油","a":"大さじ1"}],"steps":["玉ねぎ、にんじん、じゃがいもを一口大に切る","鍋に油を熱し野菜を炒める","水（適量）を加えて煮立て、アクを取る","野菜が柔らかくなったらシチュールーを加えて溶かす","牛乳を加えてとろみが出たら完成"],"equipment":["鍋","おたま","包丁","まな板"],"note":"冷蔵庫の残り食材で調整可"}
 ]
 };
 
@@ -774,6 +705,35 @@ const AEON_SIDES=[
   {name:'らっきょう',cat:'漬物',search:'らっきょう'},
   {name:'きゅうりの漬物',cat:'漬物',search:'きゅうり 漬物'},
   {name:'白菜の浅漬け',cat:'漬物',search:'白菜 浅漬け'},
+  {name:'小松菜のおひたし',cat:'和え物',search:'小松菜 おひたし 惣菜'},
+  {name:'ほうれん草のおひたし',cat:'和え物',search:'ほうれん草 おひたし 惣菜'},
+  {name:'ブロッコリーのごま和え',cat:'和え物',search:'ブロッコリー ごま和え'},
+  {name:'なすの煮浸し',cat:'煮物',search:'なす 煮浸し 惣菜'},
+  {name:'里芋の煮物',cat:'煮物',search:'里芋 煮物 惣菜'},
+  {name:'たけのこの煮物',cat:'煮物',search:'たけのこ 煮物 惣菜'},
+  {name:'れんこんのきんぴら',cat:'煮物',search:'れんこん きんぴら 惣菜'},
+  {name:'春雨の炒め煮',cat:'煮物',search:'春雨 炒め煮 惣菜'},
+  {name:'こんにゃくの炒り煮',cat:'煮物',search:'こんにゃく 炒り煮 惣菜'},
+  {name:'かぼちゃのそぼろ煮',cat:'煮物',search:'かぼちゃ そぼろ煮 惣菜'},
+  {name:'おでん（大根・こんにゃく）',cat:'煮物',search:'おでん 惣菜'},
+  {name:'豆腐のあんかけ煮',cat:'豆腐・大豆',search:'豆腐 あんかけ 惣菜'},
+  {name:'揚げ出し豆腐',cat:'豆腐・大豆',search:'揚げ出し豆腐 惣菜'},
+  {name:'厚揚げの煮物',cat:'豆腐・大豆',search:'厚揚げ 煮物 惣菜'},
+  {name:'枝豆（冷凍）',cat:'豆腐・大豆',search:'枝豆 冷凍'},
+  {name:'卵焼き',cat:'卵',search:'卵焼き 惣菜'},
+  {name:'スコッチエッグ',cat:'卵',search:'スコッチエッグ 惣菜'},
+  {name:'にんじんの梅和え',cat:'和え物',search:'にんじん 梅和え 惣菜'},
+  {name:'しらたきのきんぴら',cat:'煮物',search:'しらたき きんぴら 惣菜'},
+  {name:'ごぼうサラダ',cat:'和え物',search:'ごぼう サラダ 惣菜'},
+  {name:'きゅうりとわかめの酢の物',cat:'和え物',search:'きゅうり わかめ 酢の物 惣菜'},
+  {name:'高野豆腐の煮物',cat:'豆腐・大豆',search:'高野豆腐 煮物 惣菜'},
+  {name:'ぬか漬け',cat:'漬物',search:'ぬか漬け 惣菜'},
+  {name:'しば漬け',cat:'漬物',search:'しば漬け'},
+  {name:'大根の漬物',cat:'漬物',search:'大根 漬物'},
+  {name:'ザーサイ',cat:'漬物',search:'ザーサイ'},
+  {name:'小松菜と油揚げの煮浸し',cat:'煮物',search:'小松菜 油揚げ 煮浸し'},
+  {name:'ちくわの磯辺揚げ風',cat:'豆腐・大豆',search:'ちくわ 磯辺揚げ 惣菜'},
+  {name:'かつおの角煮',cat:'煮物',search:'かつお 角煮 惣菜'},
 ];
 const AEON_SALADS=[
   {name:'グリーンサラダ（袋）',cat:'サラダ袋',search:'グリーンサラダ 袋'},
@@ -802,7 +762,8 @@ function loadData(){
 }
 function saveData(d){
   try{localStorage.setItem('menuApp_v4',JSON.stringify(d))}
-  catch(e){console.warn('localStorage full',e)}
+  catch(e){showRatingToast('⚠️ 保存失敗：ストレージ容量不足です');return;}
+  pushToGist();
 }
 
 let DB=loadData();
@@ -829,9 +790,59 @@ function checkAdminPw(){
   const inp=document.getElementById('admin-pw-input');
   const v=inp.value;
   const pw=DB.settings&&DB.settings.adminPassword||'0000';
-  if(v===pw){inp.value='';document.getElementById('admin-pw-error').style.display='none';go('admin');}
+  if(v===pw){
+    inp.value='';document.getElementById('admin-pw-error').style.display='none';
+    if(state.pendingEditWeekKey){
+      const wk=state.pendingEditWeekKey,dy=state.pendingEditDay;
+      state.pendingEditWeekKey=null;state.pendingEditDay=null;
+      state.editingWeekKey=wk;
+      go('admin-week');
+      setTimeout(()=>{if(awDayState&&dy){awDayState.day=dy;renderAdminDayTabs();renderAdminDayContent();}},50);
+    }else{go('admin');}
+  }
   else{document.getElementById('admin-pw-error').style.display='block';}
 }
+// ===================== BACKUP / RESTORE =====================
+const BACKUP_VERSION=1;
+function backupJSON(){
+  const payload={version:BACKUP_VERSION,exportedAt:new Date().toISOString(),data:DB};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const d=new Date();
+  a.download=`menu_backup_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click();URL.revokeObjectURL(url);
+}
+function restoreJSON(){
+  document.getElementById('restore-file-input').value='';
+  document.getElementById('restore-file-input').click();
+}
+function onRestoreFileSelected(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    let payload;
+    try{payload=JSON.parse(ev.target.result);}
+    catch{alert('JSONファイルの読み込みに失敗しました。');return;}
+    if(!payload.version||!payload.data||!payload.data.weeks){
+      alert('このファイルは有効なバックアップデータではありません。');return;
+    }
+    appConfirm('現在のデータをバックアップファイルで上書きします。よろしいですか？',()=>{
+      localStorage.setItem('menuApp_v4',JSON.stringify(payload.data));
+      alert('復元が完了しました。画面を再読み込みします。');
+      location.reload();
+    });
+  };
+  reader.readAsText(file);
+}
+// ===================== FONT SIZE =====================
+const FONT_ZOOM={medium:'1',large:'1.2',xlarge:'1.4'};
+function applyFontSize(size){
+  document.documentElement.style.zoom=FONT_ZOOM[size]||'1';
+  localStorage.setItem('menuApp_fontSize',size);
+}
+
 function changeAdminPw(){
   const v=document.getElementById('new-pw').value.trim();
   if(!v)return;
@@ -924,15 +935,23 @@ function renderTop(){
     <p style="color:var(--gray);font-size:14px;padding:12px 0;text-align:center">今週の献立が登録されていません</p>`;
   }
 
+  const curSize=localStorage.getItem('menuApp_fontSize')||'medium';
   const navGrid=`<div class="top-nav-grid">
     <div class="top-nav-btn" onclick="go('future')"><span class="nav-icon">📅</span>来週以降の献立</div>
     <div class="top-nav-btn" onclick="go('past')"><span class="nav-icon">📂</span>過去の献立</div>
     <div class="top-nav-btn" onclick="go('all-menus')"><span class="nav-icon">📋</span>全献立リスト</div>
     <div class="top-nav-btn" onclick="go('info')"><span class="nav-icon">ℹ️</span>前提情報・ルール</div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
+    <span style="font-size:13px;color:var(--gray);font-weight:600;white-space:nowrap">🔤 文字サイズ</span>
+    <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='medium'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('medium');renderTop()">中</button>
+    <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='large'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('large');renderTop()">大</button>
+    <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='xlarge'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('xlarge');renderTop()">特大</button>
   </div>`;
 
-  const konroAlert=`<div style="background:#d32f2f;color:#fff;text-align:center;padding:10px 14px;font-size:15px;font-weight:700;border-radius:8px;margin:10px 0">🔥 調理後はコンロの元栓をしめてください</div>`;
+  const konroAlert=`<div style="background:#d32f2f;color:#fff;text-align:center;padding:10px 14px;font-size:15px;font-weight:700;border-radius:8px;margin:10px 0">⚠️ 調理後はコンロの元栓をしめてください</div>`;
   document.getElementById('top-content').innerHTML=latestHtml+konroAlert+navGrid;
+  maybeShowWelcome();
 }
 
 function renderWeek(){
@@ -1006,7 +1025,7 @@ function renderMenuTab(weekData){
   const todayDay=DAYS[t.getDay()===0?6:t.getDay()-1];
   const isToday=d===todayDay;
   const todayBanner=isToday?`<div style="text-align:center;padding:6px 0 10px;font-size:18px;font-weight:800;color:var(--amber)">📅 本日の献立</div>`:'';
-  const konroBanner=`<div style="background:#d32f2f;color:#fff;text-align:center;padding:8px 14px;font-size:14px;font-weight:700;border-radius:8px;margin-bottom:10px">🔥 調理後はコンロの元栓をしめてください</div>`;
+  const konroBanner=`<div style="background:#d32f2f;color:#fff;text-align:center;padding:8px 14px;font-size:14px;font-weight:700;border-radius:8px;margin-bottom:10px">⚠️ 調理後はコンロの元栓をしめてください</div>`;
   const day=weekData.menus[d];
   if(!day||!day.cooking){
     return todayBanner+`<div class="no-cook-card">
@@ -1029,21 +1048,48 @@ function renderMenuTab(weekData){
   const sides=day.sides||[];
   if(sides.length>0){
     const wk=state.weekKey;
-    const sideRows=sides.map(s=>`<div class="side-row">
-      <span class="side-type-badge">${esc(s.type)}</span>
-      <span class="side-name">${esc(s.name)}</span>
-      <div class="rating-btns" style="display:flex;gap:4px;margin-left:auto">
-        <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${esc(s.name)}','good')">👍${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||''}</button>
-        <button class="rating-btn bad${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad>0?' active':''}" onclick="toggleRating('${wk}','${d}','${esc(s.name)}','bad')">👎${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad||''}</button>
-      </div>
-    </div>`).join('');
-    html+=`<div class="sides-card"><div class="sides-header">🍱 サブ・サラダ</div>${sideRows}</div>`;
+    const shopChecks=getShopChecks(wk);
+    const sideRows=sides.map(s=>{
+      const typeLabel=s.type==='副菜'?'副菜':s.type==='サラダ'?'サラダ':s.type;
+      const st=shopChecks[s.name]||null;
+      return `<div class="side-row">
+        <span class="side-type-badge">${esc(typeLabel)}</span>
+        <span class="side-name">${esc(s.name)}</span>
+        ${shopIngBadge(st)}
+        <div class="rating-btns" style="display:flex;gap:4px;margin-left:auto">
+          <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${esc(s.name)}','good')">👍${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||''}</button>
+          <button class="rating-btn bad${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad>0?' active':''}" onclick="toggleRating('${wk}','${d}','${esc(s.name)}','bad')">👎${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad||''}</button>
+        </div>
+      </div>`;
+    }).join('');
+    html+=`<div class="sides-card"><div class="sides-header">🍱 副菜（レトルト）・袋サラダ</div>${sideRows}</div>`;
   }
+  const wkKey=state.weekKey;
+  html+=`<div style="text-align:right;padding:8px 0 4px"><button onclick="goEditWeek('${wkKey}','${d}')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:8px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer">✏️ この日を編集</button></div>`;
   return html;
 }
 
+function goEditWeek(weekKey,day){
+  const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
+  if(pwEnabled){
+    state.pendingEditWeekKey=weekKey;
+    state.pendingEditDay=day;
+    go('admin-login');
+  }else{
+    state.editingWeekKey=weekKey;
+    go('admin-week');
+    setTimeout(()=>{
+      if(awDayState&&day){awDayState.day=day;renderAdminDayTabs();renderAdminDayContent();}
+    },50);
+  }
+}
+
 function renderDishCard(dish,dishIdx,weekKey,day){
-  const ings=dish.ingredients.map(i=>`<div class="ing-row"><span class="ing-name">${esc(i.n)}</span><span class="ing-amt">${esc(i.a)}</span></div>`).join('');
+  const shopChecks=weekKey?getShopChecks(weekKey):{};
+  const ings=dish.ingredients.map(i=>{
+    const st=shopChecks[i.n.trim()]||null;
+    return `<div class="ing-row"><span class="ing-name">${esc(i.n)}${shopIngBadge(st)}</span><span class="ing-amt">${esc(i.a)}</span></div>`;
+  }).join('');
   const steps=dish.steps.map((s,si)=>`<div class="step-row"><span class="step-num">${si+1}</span><span class="step-text">${esc(s)}</span></div>`).join('');
   const equips=(dish.equipment||[]).map(e=>`<span class="equip-tag">${esc(e)}</span>`).join('');
   const note=dish.note?`<div class="dish-section"><div class="note-box">💡 ${esc(dish.note)}</div></div>`:'';
@@ -1075,37 +1121,20 @@ function renderDishCard(dish,dishIdx,weekKey,day){
   </div>`;
 }
 
-let shopAeonMode=false;
-
+// ===== 今週の材料タブ =====
 function renderShopTab(weekData,weekKey){
   if(!weekData.shopping||weekData.shopping.length===0){
-    return '<p style="padding:20px;color:var(--gray);text-align:center">買い物リストが登録されていません</p>';
+    return '<p style="padding:20px;color:var(--gray);text-align:center">材料リストが登録されていません</p>';
   }
   const savedChecks=getShopChecks(weekKey);
-  const total=weekData.shopping.reduce((a,c)=>a+c.items.length,0);
-  const done=Object.values(savedChecks).filter(Boolean).length;
-  const pct=total>0?Math.round(done/total*100):0;
-
-  let html=`<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-    <button onclick="shopAeonMode=!shopAeonMode;renderWeekContent()" style="background:${shopAeonMode?'#00853e':'var(--gray-l)'};color:${shopAeonMode?'#fff':'var(--gray)'};border:1.5px solid ${shopAeonMode?'#00853e':'var(--border)'};border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer">
-      🛒 AEONで探す${shopAeonMode?' ON':' OFF'}
-    </button>
-  </div>
-  <div style="margin-bottom:16px">
-    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-    <div class="progress-label">${done}/${total} 完了 (${pct}%)</div>
-  </div>`;
-
+  let html='';
   weekData.shopping.forEach(cat=>{
     const items=cat.items.map(item=>{
-      const ck=savedChecks[item.id]||false;
-      const mn=item.name.replace(/'/g,"\\'");
-      const aeonBtn=shopAeonMode?`<button class="aeon-btn" onclick="event.stopPropagation();openAeon('${mn}')">🛒</button>`:'';
-      return `<div class="shop-item" onclick="toggleShop('${weekKey}','${item.id}')">
-        <div class="shop-check${ck?' done':''}"><span>${ck?'✓':''}</span></div>
-        <div style="flex:1"><div class="shop-item-name" style="${ck?'text-decoration:line-through;color:var(--gray)':''}">${esc(item.name)}</div>
+      const st=savedChecks[item.id]||null;
+      return `<div class="shop-item" style="cursor:default">
+        <div style="flex:1"><div class="shop-item-name">${esc(item.name)}</div>
           <div class="shop-item-detail">${esc(item.detail)}</div></div>
-        ${aeonBtn}
+        ${shopBadge(st)}
       </div>`;
     }).join('');
     html+=`<div class="shop-category">
@@ -1113,24 +1142,85 @@ function renderShopTab(weekData,weekKey){
       ${items}
     </div>`;
   });
-
-  html+=`<button class="reset-btn" onclick="if(confirm('買い物チェックをリセットしますか？'))resetShop('${weekKey}')">✖ チェックをリセット</button>`;
+  const wk=weekKey.replace(/'/g,"\\'");
+  html+=`<button class="btn-primary" style="margin-top:8px" onclick="goShopAdmin('${wk}')">🛒 手配チェックへ</button>`;
   return html;
+}
+function goShopAdmin(weekKey){
+  const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
+  if(pwEnabled){state.pendingEditWeekKey=weekKey;state.pendingEditDay=null;go('admin-login');}
+  else{state.editingWeekKey=weekKey;go('admin-week');setTimeout(()=>{showAdminShopTab();},50);}
 }
 
 function getShopChecks(weekKey){
   try{return JSON.parse(localStorage.getItem('shop_'+weekKey)||'{}')}catch(e){return{}}
 }
-function saveShopChecks(weekKey,checks){localStorage.setItem('shop_'+weekKey,JSON.stringify(checks))}
+function saveShopChecks(weekKey,checks){localStorage.setItem('shop_'+weekKey,JSON.stringify(checks));pushToGist();}
+// 3-state: null/false → 'arranged' → 'stocked' → null
+function shopNextState(cur){
+  if(!cur)return 'arranged';
+  if(cur==='arranged')return 'stocked';
+  return null;
+}
+function shopBadge(state){
+  if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0">手配済み</span>`;
+  if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0">在庫あり</span>`;
+  return `<span style="background:var(--gray-l);color:var(--gray);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0;border:1px solid var(--border)">未確認</span>`;
+}
+function shopIngBadge(state){
+  if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px">手配済み</span>`;
+  if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px">在庫あり</span>`;
+  return `<span style="background:var(--gray-l);color:var(--gray);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;border:1px solid var(--border)">未確認</span>`;
+}
 function toggleShop(weekKey,itemId){
   const checks=getShopChecks(weekKey);
-  checks[itemId]=!checks[itemId];
+  checks[itemId]=shopNextState(checks[itemId]);
+  if(!checks[itemId])delete checks[itemId];
   saveShopChecks(weekKey,checks);
-  renderWeekContent();
 }
 function resetShop(weekKey){
   localStorage.removeItem('shop_'+weekKey);
-  renderWeekContent();
+}
+
+// ===================== PRINT =====================
+function printWeek(){
+  const k=state.weekKey;
+  const weekData=DB.weeks[k];
+  if(!weekData){window.print();return;}
+  // Build or update print container
+  let el=document.getElementById('print-all-days');
+  if(!el){
+    el=document.createElement('div');
+    el.id='print-all-days';
+    el.style.display='none';
+    document.getElementById('week-content').appendChild(el);
+  }
+  let html='';
+  DAYS.forEach(d=>{
+    const day=weekData.menus[d];
+    if(!day||!day.cooking)return;
+    const dayLabel=d+(getWeekDayDate(k,d)?` (${getWeekDayDate(k,d)})` :'');
+    const cards=(day.dishes||[]).map(dish=>renderDishCard(dish,0,k,null)).join('');
+    html+=`<div class="print-day-block">
+      <div class="print-day-header">${dayLabel}</div>
+      ${cards}
+    </div>`;
+  });
+  el.innerHTML=html||'<p>調理日がありません</p>';
+  // Temporarily swap week-content to show print-all-days only
+  const wc=document.getElementById('week-content');
+  const prev=wc.innerHTML;
+  wc.innerHTML=el.outerHTML;
+  window.print();
+  wc.innerHTML=prev;
+}
+function getWeekDayDate(weekKey,day){
+  const DAYMAP={月:0,火:1,水:2,木:3,金:4,土:5,日:6};
+  const offset=DAYMAP[day];
+  if(offset===undefined)return '';
+  const d=new Date(weekKey+'T00:00:00');
+  d.setDate(d.getDate()+offset);
+  return `${d.getMonth()+1}/${d.getDate()}`;
 }
 
 function renderStepsTab(weekData,weekKey){
@@ -1164,7 +1254,7 @@ function renderStepsTab(weekData,weekKey){
       </div>
     </div>`;
   });
-  html+=`<button class="reset-btn" onclick="if(confirm('手順チェックをリセットしますか？'))resetSteps('${weekKey}','${d}')">✖ 手順チェックをリセット</button>`;
+  html+=`<button class="reset-btn" onclick="appConfirm('手順チェックをリセットしますか？',()=>resetSteps('${weekKey}','${d}'))">✖ 手順チェックをリセット</button>`;
   return html;
 }
 
@@ -1220,17 +1310,17 @@ function renderInfo(){
     <div class="info-sec-header">✅ 調理ルール</div>
     <div class="info-row"><span class="info-key">包丁・火</span><span class="info-val"><span class="info-badge green">OK</span> 使用可能</span></div>
     <div class="info-row"><span class="info-key">作り置き</span><span class="info-val"><span class="info-badge green">OK</span> 事前調理可能</span></div>
+    <div class="info-row"><span class="info-key">週1回</span><span class="info-val">レトルト調味料料理（月・火・木・金のいずれか）</span></div>
   </div>
   <div class="info-section">
     <div class="info-sec-header">📅 曜日別メニュー</div>
-    <div class="info-row"><span class="info-key">月曜日</span><span class="info-val">肉メイン（父・兄 2人分）＋焼き魚（母 1人分）</span></div>
+    <div class="info-row"><span class="info-key">月曜日</span><span class="info-val">肉メイン（父・兄 2人分）＋焼き魚 or レトルト魚食品（母 1人分）</span></div>
     <div class="info-row"><span class="info-key">火曜日</span><span class="info-val">海老料理（3人分）</span></div>
     <div class="info-row"><span class="info-key">水曜日</span><span class="info-val">魚料理</span></div>
     <div class="info-row"><span class="info-key">木曜日</span><span class="info-val">調理なし（レトルト調味料使用時は調理あり）</span></div>
     <div class="info-row"><span class="info-key">金曜日</span><span class="info-val">残り食材を活用したメニュー</span></div>
     <div class="info-row"><span class="info-key">土曜日</span><span class="info-val">調理なし</span></div>
     <div class="info-row"><span class="info-key">日曜日</span><span class="info-val">調理なし</span></div>
-    <div class="info-row"><span class="info-key">週1回</span><span class="info-val">レトルト調味料料理（月・火・木・金のいずれか）</span></div>
   </div>
   <div class="info-section">
     <div class="info-sec-header">🛒 買い物ルール</div>
@@ -1264,11 +1354,12 @@ function renderAdmin(){
   });
   document.getElementById('admin-week-list').innerHTML=html||'<p style="color:var(--gray);font-size:14px">登録済みの週はありません</p>';
   renderAdminPwSection();
+  const gstEl=document.getElementById('gist-status');
+  if(gstEl)gstEl.textContent=getGistId()?'✅ Gist ID設定済み（HTML埋め込み済み）':'⚠️ Gist ID未設定（HTMLの GIST_ID を編集してください）';
 }
 
 function deleteWeek(k){
-  if(!confirm(`${getWeekLabel(k)} を削除しますか？`))return;
-  delete DB.weeks[k];saveData(DB);renderAdmin();
+  appConfirm(`${getWeekLabel(k)} を削除しますか？`,()=>{delete DB.weeks[k];saveData(DB);renderAdmin();});
 }
 
 let awDayState={day:'月',days:{}};
@@ -1320,8 +1411,58 @@ function renderAdminWeek(){
     });
   }
   awDayState.day='月';
-  renderAdminDayTabs();
-  renderAdminDayContent();
+  setAdminWeekTab('menu');
+}
+
+let adminWeekTab='menu';
+function setAdminWeekTab(tab){
+  adminWeekTab=tab;
+  document.getElementById('aw-menu-section').style.display=tab==='menu'?'':'none';
+  document.getElementById('aw-shop-section').style.display=tab==='shop'?'':'none';
+  document.getElementById('aw-tab-menu-btn').className=tab==='menu'?'btn-primary':'btn-secondary';
+  document.getElementById('aw-tab-shop-btn').className=tab==='shop'?'btn-primary':'btn-secondary';
+  if(tab==='menu'){renderAdminDayTabs();renderAdminDayContent();}
+  else{renderAdminShopChecklist();}
+}
+function showAdminShopTab(){setAdminWeekTab('shop');}
+
+function renderAdminShopChecklist(){
+  const k=state.editingWeekKey;
+  const weekData=k?DB.weeks[k]:null;
+  if(!weekData||!weekData.shopping||weekData.shopping.length===0){
+    document.getElementById('aw-shop-content').innerHTML='<p style="padding:20px;color:var(--gray);text-align:center">材料リストが登録されていません</p>';
+    return;
+  }
+  const savedChecks=getShopChecks(k);
+  const total=weekData.shopping.reduce((a,c)=>a+c.items.length,0);
+  const done=Object.values(savedChecks).filter(v=>v==='arranged'||v==='stocked').length;
+  const pct=total>0?Math.round(done/total*100):0;
+  let html=`<div style="margin-bottom:16px">
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="progress-label">${done}/${total} 手配済み (${pct}%)</div>
+  </div>`;
+  weekData.shopping.forEach(cat=>{
+    const items=cat.items.map(item=>{
+      const ck=savedChecks[item.id]||false;
+      const st=savedChecks[item.id]||null;
+      const mn=item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div class="shop-item" onclick="toggleShop('${k}','${item.id}');renderAdminShopChecklist();renderWeekContent()" style="cursor:pointer">
+        <div style="flex:1"><div class="shop-item-name">${esc(item.name)}</div>
+          <div class="shop-item-detail">${esc(item.detail)}</div></div>
+        ${shopBadge(st)}
+        <button class="aeon-btn" style="margin-left:6px" onclick="event.stopPropagation();openAeon('${mn}')">🛒</button>
+      </div>`;
+    }).join('');
+    html+=`<div class="shop-category">
+      <div class="shop-cat-header"><span>${cat.icon}</span>${cat.category}</div>
+      ${items}
+    </div>`;
+  });
+  document.getElementById('aw-shop-content').innerHTML=html;
+}
+function resetShopFromAdmin(){
+  const k=state.editingWeekKey;
+  if(k){localStorage.removeItem('shop_'+k);renderAdminShopChecklist();renderWeekContent();}
 }
 
 function renderAdminDayTabs(){
@@ -1378,7 +1519,7 @@ function renderAdminDayContent(){
         <button class="btn-danger" style="padding:4px 10px;font-size:12px" onclick="removeSide(${si})">✕</button>
       </div>`;
     });
-    if(sides.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">サブ・サラダ未登録</div>`;
+    if(sides.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">副菜（レトルト）・袋サラダ未登録</div>`;
     html+=`</div>`;
   }
   html+='</div>';
@@ -1490,17 +1631,21 @@ function saveAdminWeek(){
 
   const weekKey=startDate;
   const isNew=!state.editingWeekKey||state.editingWeekKey!==weekKey;
+  const doSave=()=>{
+    DB.weeks[weekKey]={menus,shopping:buildShoppingList(menus)};
+    if(state.editingWeekKey&&state.editingWeekKey!==weekKey){
+      delete DB.weeks[state.editingWeekKey];
+    }
+    saveData(DB);
+    const m=document.getElementById('aw-save-msg');
+    m.style.display='block';m.className='alert success';m.textContent='保存しました！';
+    setTimeout(()=>{m.style.display='none';go('admin');},1200);
+  };
   if(isNew&&DB.weeks[weekKey]){
-    if(!confirm(`${weekKey} の献立は既に登録されています。上書きしますか？`))return;
+    appConfirm(`${weekKey} の献立は既に登録されています。上書きしますか？`,doSave);
+    return;
   }
-  DB.weeks[weekKey]={menus,shopping:buildShoppingList(menus)};
-  if(state.editingWeekKey&&state.editingWeekKey!==weekKey){
-    delete DB.weeks[state.editingWeekKey];
-  }
-  saveData(DB);
-  const m=document.getElementById('aw-save-msg');
-  m.style.display='block';m.className='alert success';m.textContent='保存しました！';
-  setTimeout(()=>{m.style.display='none';go('admin');},1200);
+  doSave();
 }
 
 function togglePresetPicker(dishIdx){
@@ -1636,7 +1781,7 @@ function pickRandom(dishIdx){
 }
 function randomizeWeek(){
   const retruDay=['火','木','金'][Math.floor(Math.random()*3)];
-  const cats={'月':['肉メイン','焼き魚'],'火':['海老料理'],'水':['魚料理'],'金':['残り食材活用']};
+  const cats={'月':['肉メイン','レトルト魚料理'],'火':['海老料理'],'水':['魚料理'],'金':['残り食材活用']};
   cats[retruDay]=['レトルト調味料'];
   const cookDays=['月','火','水','金'];
   if(retruDay==='木'&&!cookDays.includes('木'))cookDays.push('木');
@@ -1656,12 +1801,12 @@ function randomizeWeek(){
   const saladDayOffset={'月':0,'火':1,'水':2};
   const getSaladForDay=(d)=>{const idx=(weekEpoch*3+(saladDayOffset[d]||0))%AEON_SALADS.length;return AEON_SALADS[idx];};
   const sideCatMap={
-    '肉メイン':      ['和え物','豆腐・大豆','卵','漬物'],
-    '焼き魚':        ['和え物','豆腐・大豆','煮物','漬物'],
-    '海老料理':      ['和え物','豆腐・大豆','卵','漬物'],
-    '魚料理':        ['豆腐・大豆','和え物','煮物','卵','漬物'],
+    '肉メイン':      ['和え物','豆腐・大豆','卵'],
+    'レトルト魚料理':        ['和え物','豆腐・大豆','煮物'],
+    '海老料理':      ['和え物','豆腐・大豆','卵'],
+    '魚料理':        ['豆腐・大豆','和え物','煮物','卵'],
     '残り食材活用':  ['和え物','豆腐・大豆','卵'],
-    'レトルト調味料':['和え物','煮物','豆腐・大豆','漬物'],
+    'レトルト調味料':['和え物','煮物','豆腐・大豆'],
   };
   cookDays.forEach(d=>{
     if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
@@ -1680,9 +1825,9 @@ function randomizeWeek(){
       awDayState.days[d].sides.push({type:'副菜',name:'らっきょう',search:'らっきょう'});
     }else if(d==='金'){
       const warmPool=AEON_SIDES.filter(s=>s.cat==='煮物');
+      const tsukemonoPool=AEON_SIDES.filter(s=>s.cat==='漬物');
       const side1=pickFreshSide(warmPool);
-      const side2Pool=warmPool.filter(s=>s!==side1);
-      const side2=side2Pool.length?pickFreshSide(side2Pool):null;
+      const side2=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
       if(side1)awDayState.days[d].sides.push({type:'副菜',name:side1.name,search:side1.search||side1.name});
       if(side2)awDayState.days[d].sides.push({type:'サラダ',name:side2.name,search:side2.search||side2.name});
     }else{
@@ -1740,8 +1885,9 @@ function renderFuture(){
 
 // ===================== ALL MENUS =====================
 let allMenusCat='すべて';
+let allMenusGenre='すべて';
 function renderAllMenus(){
-  const cats=['すべて',...new Set(ALL_PRESETS.map(p=>p.category)),'おかず','サラダ'];
+  const cats=['すべて',...new Set(ALL_PRESETS.map(p=>p.category)),'副菜','サラダ'];
   const query=(document.getElementById('all-menus-search')?.value||'').trim();
   const ratings=getRatings();
 
@@ -1756,15 +1902,31 @@ function renderAllMenus(){
   });
 
   // Category buttons
-  const catHtml=cats.map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${esc(c)}';renderAllMenus()">${esc(c)}</button>`).join('');
+  const catHtml=cats.map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${esc(c)}';allMenusGenre='すべて';renderAllMenus()">${esc(c)}</button>`).join('');
   document.getElementById('all-menus-cats').innerHTML=catHtml;
 
+  // Genre sub-filter
+  const genreEl=document.getElementById('all-menus-genres');
+  if(allMenusCat==='サラダ'){
+    genreEl.innerHTML='';genreEl.style.display='none';
+  }else if(allMenusCat==='副菜'){
+    const sideGenres=['すべて',...new Set(AEON_SIDES.map(s=>s.cat))];
+    genreEl.innerHTML=sideGenres.map(g=>`<button class="preset-cat-btn${allMenusGenre===g?' active':''}" style="flex-shrink:0;font-size:13px;padding:6px 10px" onclick="allMenusGenre='${esc(g)}';renderAllMenus()">${esc(g)}</button>`).join('');
+    genreEl.style.display='flex';
+  }else{
+    const filteredForGenre=allMenusCat==='すべて'?ALL_PRESETS:ALL_PRESETS.filter(p=>p.category===allMenusCat);
+    const genres=['すべて',...new Set(filteredForGenre.map(p=>p.genre))];
+    genreEl.innerHTML=genres.map(g=>`<button class="preset-cat-btn${allMenusGenre===g?' active':''}" style="flex-shrink:0;font-size:13px;padding:6px 10px" onclick="allMenusGenre='${esc(g)}';renderAllMenus()">${esc(g)}</button>`).join('');
+    genreEl.style.display='flex';
+  }
+
   let listHtml='';
-  if(allMenusCat==='すべて'||(!['おかず','サラダ'].includes(allMenusCat))){
+  if(allMenusCat==='すべて'||(!['副菜','サラダ'].includes(allMenusCat))){
     let list=ALL_PRESETS.filter(p=>{
       const matchCat=allMenusCat==='すべて'||p.category===allMenusCat;
+      const matchGenre=allMenusGenre==='すべて'||p.genre===allMenusGenre;
       const matchQ=!query||p.menu.includes(query)||p.category.includes(query);
-      return matchCat&&matchQ;
+      return matchCat&&matchGenre&&matchQ;
     });
     list=list.slice().sort((a,b)=>{
       const la=lastUsed[a.menu]||'';
@@ -1790,15 +1952,18 @@ function renderAllMenus(){
       </div>`;
     }).join('');
   }
-  if(allMenusCat==='すべて'||allMenusCat==='おかず'){
-    const sidePool=(AEON_SIDES||[]).filter(s=>!query||s.name.includes(query));
+  if(allMenusCat==='すべて'||allMenusCat==='副菜'){
+    const sidePool=(AEON_SIDES||[]).filter(s=>{
+      const matchGenre=allMenusCat!=='副菜'||allMenusGenre==='すべて'||s.cat===allMenusGenre;
+      return matchGenre&&(!query||s.name.includes(query));
+    });
     listHtml+=sidePool.map(s=>{
       const lu=getSideLastUsed(s.name);
       const rt=getSideRatingTotal(s.name);
       const mn=s.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       return `<div class="all-menu-item">
         <div class="all-menu-info">
-          <div class="all-menu-name">${esc(s.name)} <span class="tag" style="font-size:11px">おかず</span></div>
+          <div class="all-menu-name">${esc(s.name)} <span class="tag" style="font-size:11px">副菜</span></div>
           <div class="all-menu-meta">📅 ${lu} | 👍${rt.good} 👎${rt.bad}</div>
         </div>
         <div class="all-menu-rating">
@@ -1832,8 +1997,19 @@ function toggleAllMenuRating(menuName,type){
   const r=getRatings();
   const k='allmenus_'+menuName;
   if(!r[k])r[k]={good:0,bad:0};
-  r[k][type]++;saveRatings(r);
-  showRatingToast(type==='good'?'👍 いいね！':'👎 うーん…');
+  const mv=getMyVotes();
+  const prev=mv[k]||null;
+  if(prev===type){
+    r[k][type]=Math.max(0,(r[k][type]||1)-1);
+    mv[k]=null;
+    showRatingToast('取り消しました');
+  }else{
+    if(prev){r[k][prev]=Math.max(0,(r[k][prev]||1)-1);}
+    r[k][type]=(r[k][type]||0)+1;
+    mv[k]=type;
+    showRatingToast(type==='good'?'👍 いいね！':'👎 うーん…');
+  }
+  saveRatings(r);saveMyVotes(mv);
   renderAllMenus();
 }
 
@@ -1864,7 +2040,7 @@ function openAeon(term){
 
 // ===================== RATINGS =====================
 function getRatings(){try{return JSON.parse(localStorage.getItem('ratings_v2')||'{}')}catch(e){return{}}}
-function saveRatings(r){try{localStorage.setItem('ratings_v2',JSON.stringify(r))}catch(e){}}
+function saveRatings(r){try{localStorage.setItem('ratings_v2',JSON.stringify(r))}catch(e){return;}pushToGist();}
 function ratingKey(wk,d,menuName){return wk+'_'+d+'_'+menuName}
 function getSideLastUsed(name){
   let latest='';
@@ -1887,10 +2063,27 @@ function getSideRatingTotal(name){
   });
   return {good:g,bad:b};
 }
+// 端末ごとの投票フラグ（1回限り・再投票でキャンセル）
+function getMyVotes(){try{return JSON.parse(localStorage.getItem('my_votes')||'{}')}catch(e){return{}}}
+function saveMyVotes(v){localStorage.setItem('my_votes',JSON.stringify(v))}
 function toggleRating(wk,d,menuName,type){
   const r=getRatings();const k=ratingKey(wk,d,menuName);
-  if(!r[k])r[k]={good:0,bad:0};r[k][type]++;saveRatings(r);
-  showRatingToast(type==='good'?'👍 いいね！':'👎 うーん…');
+  if(!r[k])r[k]={good:0,bad:0};
+  const mv=getMyVotes();
+  const prev=mv[k]||null;
+  if(prev===type){
+    // 同じボタンを再タップ → キャンセル
+    r[k][type]=Math.max(0,(r[k][type]||1)-1);
+    mv[k]=null;
+    showRatingToast('取り消しました');
+  }else{
+    // 前の投票を取り消してから新しい投票
+    if(prev){r[k][prev]=Math.max(0,(r[k][prev]||1)-1);}
+    r[k][type]=(r[k][type]||0)+1;
+    mv[k]=type;
+    showRatingToast(type==='good'?'👍 いいね！':'👎 うーん…');
+  }
+  saveRatings(r);saveMyVotes(mv);
   renderWeekContent();
 }
 function showRatingToast(msg){
@@ -1898,6 +2091,53 @@ function showRatingToast(msg){
   if(!t){t=document.createElement('div');t.id='rating-toast';t.className='rating-toast';document.body.appendChild(t);}
   t.textContent=msg;t.classList.add('show');
   clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),1500);
+}
+
+// ===================== APP MODAL (confirm代替) =====================
+function appConfirm(msg,onOk,onCancel){
+  let ov=document.getElementById('app-modal-overlay');
+  if(ov)ov.remove();
+  ov=document.createElement('div');
+  ov.id='app-modal-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:24px';
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:20px;line-height:1.6">${msg}</div>
+    <div style="display:flex;gap:10px">
+      <button id="app-modal-cancel" class="btn-secondary" style="flex:1">キャンセル</button>
+      <button id="app-modal-ok" style="flex:1;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:14px;font-weight:700;cursor:pointer">OK</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('app-modal-ok').onclick=()=>{ov.remove();if(onOk)onOk();};
+  document.getElementById('app-modal-cancel').onclick=()=>{ov.remove();if(onCancel)onCancel();};
+}
+
+// ===================== FIRST-LAUNCH WELCOME =====================
+function maybeShowWelcome(){
+  if(localStorage.getItem('menuApp_welcomed'))return;
+  localStorage.setItem('menuApp_welcomed','1');
+  let ov=document.getElementById('app-modal-overlay');
+  if(ov)ov.remove();
+  ov=document.createElement('div');
+  ov.id='app-modal-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:80vh;overflow-y:auto">
+    <div style="font-size:20px;font-weight:800;color:var(--navy);margin-bottom:12px">🍽️ 夕食献立管理アプリへようこそ</div>
+    <div style="font-size:14px;color:var(--navy);line-height:1.8;margin-bottom:16px">
+      ご利用ありがとうございます。このアプリはご利用者様の夕食献立を管理するものです。<br><br>
+      <b>📋 献立の確認</b><br>
+      トップ画面で今週の献立を確認できます。<br>
+      「献立」タブで曜日ごとの料理を確認してください。<br><br>
+      <b>🛒 材料の確認</b><br>
+      「今週の材料」タブで必要な食材を確認できます。<br>
+      材料の手配状況（未確認・手配済み・在庫あり）も表示されます。<br><br>
+      <b>👍 料理の評価</b><br>
+      食べた感想を 👍 いいね / 👎 うーん で記録できます。<br>
+      次回の献立作成の参考になります。
+    </div>
+    <button onclick="document.getElementById('app-modal-overlay').remove()" style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">はじめる</button>
+  </div>`;
+  document.body.appendChild(ov);
 }
 function getPresetStats(menuName){
   const ratings=getRatings();let lastWk=null,g=0,b=0;
@@ -1922,8 +2162,72 @@ function getPresetStats(menuName){
 // ===================== UTIL =====================
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
+// ===================== GIST SYNC =====================
+// ↓ GistのIDをここに入力してください（作成したGistのURLの末尾の英数字）
+const GIST_ID = 'c383bc2d0efaa0a832fee81448096478';
+// ↑ 例: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4'
+
+function getGistId(){return GIST_ID&&GIST_ID!=='YOUR_GIST_ID_HERE'?GIST_ID:null;}
+async function syncFromGist(){
+  const gistId=getGistId();
+  if(!gistId)return;
+  try{
+    const res=await fetch(`https://api.github.com/gists/${gistId}`);
+    if(!res.ok)return;
+    const gist=await res.json();
+    const file=gist.files&&gist.files['menuapp-data.json'];
+    if(!file)return;
+    const raw=JSON.parse(file.content);
+    if(raw.menuApp_v4)localStorage.setItem('menuApp_v4',JSON.stringify(raw.menuApp_v4));
+    if(raw.ratings_v2)localStorage.setItem('ratings_v2',JSON.stringify(raw.ratings_v2));
+    if(raw.shopChecks){
+      Object.entries(raw.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
+    }
+  }catch(e){console.warn('Gist sync failed',e);}
+}
+async function pushToGist(){
+  const gistId=getGistId();
+  const pat=localStorage.getItem('menuApp_gistPat');
+  if(!gistId||!pat)return;
+  const shopChecks={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('shop_')){try{shopChecks[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
+  }
+  const payload={
+    version:1,
+    updatedAt:new Date().toISOString(),
+    menuApp_v4:JSON.parse(localStorage.getItem('menuApp_v4')||'null'),
+    ratings_v2:JSON.parse(localStorage.getItem('ratings_v2')||'{}'),
+    shopChecks
+  };
+  try{
+    await fetch(`https://api.github.com/gists/${gistId}`,{
+      method:'PATCH',
+      headers:{Authorization:`token ${pat}`,'Content-Type':'application/json'},
+      body:JSON.stringify({files:{'menuapp-data.json':{content:JSON.stringify(payload,null,2)}}})
+    });
+  }catch(e){console.warn('Gist push failed',e);}
+}
+function saveGistPat(v){localStorage.setItem('menuApp_gistPat',v.trim());showRatingToast('PATを保存しました');}
+async function testGistSync(){
+  const gistId=getGistId();
+  if(!gistId){showRatingToast('⚠️ Gist IDがHTMLに設定されていません');return;}
+  showRatingToast('接続テスト中...');
+  try{
+    const res=await fetch(`https://api.github.com/gists/${gistId}`);
+    if(res.ok){showRatingToast('✅ 接続成功');}
+    else{showRatingToast('❌ 接続失敗（'+res.status+'）');}
+  }catch(e){showRatingToast('❌ 接続エラー');}
+}
+
 // ===================== INIT =====================
-go('top');
+async function initApp(){
+  await syncFromGist();
+  DB=loadData();
+  go('top');
+}
+initApp();
 </script>
 </body>
 </html>
