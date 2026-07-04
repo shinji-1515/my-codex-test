@@ -401,8 +401,21 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.2.0（2026-07-04 初回ロック・パスワード共通化版）
+// 夕食献立管理アプリ V2.7.0（2026-07-04 金曜ランダム選定から海老を除外）
 // 変更履歴（Changelog）
+// V2.7.0:
+//  [H-1] getDayLabelRules()の金曜ルールに海老を除外ラベル追加。pickRandom()（当日のみ）・randomizeDays()（一括）は共にgetDayLabelRules()を参照するため、両方に自動的に反映される（曜日ルールの共通化は既存実装のまま）
+// V2.6.0:
+//  [G-1] renderDishEditBlock()の材料分量inputが1文字入力ごとにrenderAdminDayContent()を呼び自身を再生成していたため、Androidでキーボードが閉じる不具合を修正。不要な再描画呼び出しを削除
+// V2.5.0:
+//  [F-1] プリセット選択画面の白ラベルボタンに×を表記し、タップでそのラベルを持つ料理を除外できる機能を追加
+//  [F-2] awExcludeLabels新設、filterPresets()にexcludeLabels引数を追加、除外中ラベルはパンくずに赤色で表示（再タップで解除）
+// V2.4.0:
+//  [E-1] 牛肉の手作り料理を9品追加（従来レトルトのみだった牛肉料理のバリエーションを拡充）
+//  [E-2] getRandomPreset()に牛肉の月1回ルールを追加。直近1ヶ月以内に牛肉料理を使った場合、次のランダム選定では牛肉料理を候補から除外する
+// V2.3.0:
+//  [D-1] getRandomPreset()の「使用済みだが未評価」永久除外ルールを廃止。recentUsed（直近1ヶ月）のみで重複を回避し、評価の付け忘れによる候補プールの偏り・特定食材ばかり選ばれる不具合を修正
+//  [D-2] 上記に伴い不要になったeverUsed集計を削除
 // V2.2.0:
 //  [C-1] passwordEnabledの初期値をtrueに変更。全端末が初回アクセス時から真にロック状態になる
 //  [C-2] settings（パスワード保護ON/OFF・管理者/評価者パスワード）をGist同期対象に復帰。全端末でパスワードが共通化される（V2.0.0 [S-1]を撤回）
@@ -475,6 +488,15 @@ const PRESET_DISHES=[
 {menu:'鶏むね肉とほうれん草のクリーム煮',labels:['肉野菜','鶏','和食','洋食','煮物'],ingredients:[{n:'鶏むね肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ほうれん草',a1:'1/3束',a2:'2/3束',a3:'1束'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'牛乳',a1:'100ml',a2:'200ml',a3:'300ml'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'},{n:'薄力粉',a1:'大さじ2',a2:'大さじ4',a3:'大さじ6'}]},
 {menu:'鶏もも肉のねぎ塩炒め',labels:['肉野菜','鶏','和食','炒め物','残り野菜活用'],ingredients:[{n:'鶏もも肉',a1:'90g',a2:'180g',a3:'270g'},{n:'長ねぎ',a1:'1/2本',a2:'1本',a3:'1本半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'鶏がらスープの素',a1:'適量',a2:'適量',a3:'適量'},{n:'塩こしょう',a1:'適量',a2:'適量',a3:'適量'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'鶏むね肉とトマトのバジル炒め',labels:['肉野菜','鶏','洋食','炒め物','残り野菜活用'],ingredients:[{n:'鶏むね肉',a1:'90g',a2:'180g',a3:'270g'},{n:'トマト',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'乾燥バジル',a1:'適量',a2:'適量',a3:'適量'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉と玉ねぎのすき焼き風煮',labels:['肉メイン','牛','和食','煮物'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'しらたき',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉とピーマンのチンジャオロース風',labels:['肉野菜','牛','中華','炒め物'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ水煮',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'オイスターソース',a1:'適量',a2:'適量',a3:'適量'},{n:'片栗粉',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉と大根の甘辛煮',labels:['肉野菜','牛','和食','煮物','甘辛'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'大根',a1:'1/6本',a2:'1/3本',a3:'1/2本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉のガーリックステーキ',labels:['肉メイン','牛','洋食','焼き物','ガーリック'],ingredients:[{n:'牛ステーキ肉',a1:'90g',a2:'180g',a3:'270g'},{n:'にんにく',a1:'適量',a2:'適量',a3:'適量'},{n:'バター',a1:'適量',a2:'適量',a3:'適量'},{n:'塩こしょう',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉と白菜のうま煮',labels:['肉野菜','牛','中華','煮物'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'オイスターソース',a1:'適量',a2:'適量',a3:'適量'},{n:'片栗粉',a1:'適量',a2:'適量',a3:'適量'},{n:'鶏がらスープの素',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉と根菜の甘酢炒め',labels:['肉野菜','牛','和食','炒め物','甘酢'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'れんこん',a1:'1/4節',a2:'1/2節',a3:'3/4節'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'酢',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉のトマト煮込み',labels:['肉メイン','牛','洋食','煮物','トマト','残り野菜活用'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'ホールトマト缶',a1:'1缶（400g）',a2:'1缶（400g）',a3:'1缶（400g）'},{n:'にんにく',a1:'適量',a2:'適量',a3:'適量'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉とごぼうのしぐれ煮',labels:['肉野菜','牛','和食','煮物','甘辛'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ごぼう',a1:'1/3本',a2:'2/3本',a3:'1本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉ともやしの黒酢炒め',labels:['肉野菜','牛','中華','炒め物','黒酢'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'もやし',a1:'1/2袋',a2:'1袋',a3:'1袋半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'黒酢',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'さばの味噌煮レトルト',labels:['肉無し','魚','和食','煮物','レトルト完成品','レトルト調味料'],ingredients:[{n:'さばの味噌煮（レトルト）',a1:'1/3袋',a2:'2/3袋',a3:'1袋'}]},
 {menu:'さばの水煮レトルト',labels:['肉無し','魚','和食','煮物','レトルト完成品'],ingredients:[{n:'さばの水煮（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'}]},
 {menu:'さばの醤油煮レトルト',labels:['肉無し','魚','和食','煮物','レトルト完成品'],ingredients:[{n:'さばの醤油煮（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'}]},
@@ -1513,7 +1535,7 @@ function deleteWeek(k){
 }
 
 let awDayState={day:'月',days:{}};
-let awPresetForDish=null,awPresetFilter='',awPresetCat='すべて',awPresetGenre='すべて',awActiveLabels=[];
+let awPresetForDish=null,awPresetFilter='',awPresetCat='すべて',awPresetGenre='すべて',awActiveLabels=[],awExcludeLabels=[];
 let awSidePickerType='副菜',awSidePickerCat='すべて',awSideFilter='';
 
 function getNextMonday(){
@@ -1698,7 +1720,7 @@ function renderDishEditBlock(dish,di){
     const curVal=hasMulti?(ing[fieldKey]!=null?ing[fieldKey]:ing.a1):ing.a;
     return `<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
     <input class="form-input" style="flex:2" placeholder="材料名" value="${esc(ing.n)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].n=this.value">
-    <input class="form-input" style="flex:1" placeholder="${_p}人分の量" value="${esc(curVal)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].${fieldKey}=this.value;renderAdminDayContent()">
+    <input class="form-input" style="flex:1" placeholder="${_p}人分の量" value="${esc(curVal)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].${fieldKey}=this.value">
   </div>`;}).join('');
 
   return `<div class="dish-edit-block">
@@ -1827,13 +1849,14 @@ function updatePresetList(){
   const more=filtered.length>MAX?`<div class="preset-empty">他${filtered.length-MAX}件 → 絞り込んでください</div>`:'';
   el.innerHTML=items+more;
 }
-function filterPresets(query,activeLabels){
+function filterPresets(query,activeLabels,excludeLabels){
   // ★A-2修正：検索・絞り込みもプリセット編集を反映した一覧を対象とする
   return getMergedPresets().filter(d=>{
     const lbls=d.labels||[];
     const matchLabel=!activeLabels||!activeLabels.length||activeLabels.every(l=>lbls.includes(l));
+    const matchExclude=!excludeLabels||!excludeLabels.length||excludeLabels.every(l=>!lbls.includes(l));
     const matchQ=!query||d.menu.includes(query)||(d.ingredients&&d.ingredients.some(i=>i.n&&i.n.includes(query)));
-    return matchLabel&&matchQ;
+    return matchLabel&&matchExclude&&matchQ;
   });
 }
 // 段階的シングルセレクト：ラベルを追加（既選択なら以降を削除）
@@ -1844,15 +1867,31 @@ function toggleLabel(l){
     awActiveLabels.splice(idx);
   } else {
     awActiveLabels.push(l);
+    // 含める指定をしたラベルは除外指定と両立しない
+    const exIdx=awExcludeLabels.indexOf(l);
+    if(exIdx>=0)awExcludeLabels.splice(exIdx,1);
   }
   updatePresetOverlayList();
 }
-// 現在の絞り込み結果に存在するラベルセットを返す（選択済みを除く）
+// ラベルを除外指定（白ボタンの×タップ）：このラベルを持つ料理を候補から外す
+function toggleExcludeLabel(l){
+  const idx=awExcludeLabels.indexOf(l);
+  if(idx>=0){
+    awExcludeLabels.splice(idx,1);
+  } else {
+    awExcludeLabels.push(l);
+    // 除外指定をしたラベルは含める指定と両立しない
+    const inIdx=awActiveLabels.indexOf(l);
+    if(inIdx>=0)awActiveLabels.splice(inIdx);
+  }
+  updatePresetOverlayList();
+}
+// 現在の絞り込み結果に存在するラベルセットを返す（選択済み・除外済みを除く）
 function getAvailableLabels(){
-  const filtered=filterPresets(awPresetFilter,awActiveLabels);
+  const filtered=filterPresets(awPresetFilter,awActiveLabels,awExcludeLabels);
   const s=new Set();
   filtered.forEach(p=>(p.labels||[]).forEach(l=>{
-    if(!awActiveLabels.includes(l)) s.add(l);
+    if(!awActiveLabels.includes(l)&&!awExcludeLabels.includes(l)) s.add(l);
   }));
   return s;
 }
@@ -1860,6 +1899,7 @@ function openPresetOverlay(dishIdx){
   awPresetForDish=dishIdx;
   awPresetFilter='';
   awActiveLabels=[];
+  awExcludeLabels=[];
   let ov=document.getElementById('preset-overlay');
   if(!ov){
     ov=document.createElement('div');
@@ -1870,16 +1910,17 @@ function openPresetOverlay(dishIdx){
   renderPresetOverlay();
 }
 function buildLabelFilterHTML(){
-  // パンくず（選択済みラベル列）
-  const crumbs=awActiveLabels.length
-    ? `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 16px;background:#f8f8f8;border-bottom:1px solid var(--border)">`
-      +awActiveLabels.map((l,i)=>`<button class="preset-cat-btn active" style="font-size:12px;padding:4px 10px" onclick="awActiveLabels.splice(${i});updatePresetOverlayList()">${esc(l)} ×</button>`).join('<span style="color:var(--gray);align-self:center">›</span>')
-      +`</div>`
+  // パンくず（選択済み・除外済みラベル列）
+  const includeCrumbs=awActiveLabels.map((l,i)=>`<button class="preset-cat-btn active" style="font-size:12px;padding:4px 10px" onclick="awActiveLabels.splice(${i});updatePresetOverlayList()">${esc(l)} ×</button>`);
+  const excludeCrumbs=awExcludeLabels.map((l,i)=>`<button class="preset-cat-btn" style="font-size:12px;padding:4px 10px;background:#fdd;border-color:var(--red);color:var(--red)" onclick="awExcludeLabels.splice(${i},1);updatePresetOverlayList()">🚫${esc(l)} ×</button>`);
+  const allCrumbs=[...includeCrumbs,...excludeCrumbs];
+  const crumbs=allCrumbs.length
+    ? `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 16px;background:#f8f8f8;border-bottom:1px solid var(--border)">${allCrumbs.join('')}</div>`
     : '';
-  // 次の選択肢（絞り込み後に存在するラベル、1つだけ選べる）
+  // 次の選択肢（絞り込み後に存在するラベル）：ラベル名タップで含める、×タップで除外
   const available=getAvailableLabels();
   const nextBtns=[...available].sort().map(l=>
-    `<button class="preset-cat-btn" style="flex-shrink:0;font-size:12px;padding:4px 10px" onclick="toggleLabel('${esc(l)}')">${esc(l)}</button>`
+    `<button class="preset-cat-btn" style="flex-shrink:0;font-size:12px;padding:4px 6px 4px 10px" onclick="toggleLabel('${esc(l)}')">${esc(l)}<span onclick="event.stopPropagation();toggleExcludeLabel('${esc(l)}')" style="display:inline-block;margin-left:4px;padding:0 4px;color:var(--red);font-weight:800">×</span></button>`
   ).join('');
   const nextArea=nextBtns
     ? `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--border);background:#fff">${nextBtns}</div>`
@@ -1911,7 +1952,7 @@ function updatePresetOverlayList(){
   const lf=document.getElementById('preset-label-filter');
   if(lf) lf.innerHTML=buildLabelFilterHTML();
   const dishIdx=awPresetForDish;
-  const filtered=filterPresets(awPresetFilter,awActiveLabels);
+  const filtered=filterPresets(awPresetFilter,awActiveLabels,awExcludeLabels);
   const MAX=100;
   const items=filtered.slice(0,MAX).map(d=>{
     const mn=jsArg(d.menu);
@@ -2147,13 +2188,16 @@ function getRandomPreset(opts){
   const now=new Date();now.setHours(0,0,0,0);
   const oneMonthAgo=new Date(now);oneMonthAgo.setMonth(oneMonthAgo.getMonth()-1);
   const ratings=getRatings();
-  const recentUsed=new Set(),everUsed=new Set();
+  const recentUsed=new Set();
+  let beefUsedInLastMonth=false; // ★V2.4.0修正：牛肉のランダム選定は月1回までとする
   Object.entries(DB.weeks).forEach(([wk,wd])=>{
     const wkDate=new Date(wk+'T00:00:00');
     DAYS.forEach(d=>{
       (wd.menus?.[d]?.dishes||[]).forEach(dish=>{
-        everUsed.add(dish.menu);
-        if(wkDate>=oneMonthAgo)recentUsed.add(dish.menu);
+        if(wkDate>=oneMonthAgo){
+          recentUsed.add(dish.menu);
+          if((dish.labels||[]).includes('牛'))beefUsedInLastMonth=true;
+        }
       });
     });
   });
@@ -2163,6 +2207,8 @@ function getRandomPreset(opts){
   if(excludeLabels.length) pool=pool.filter(p=>excludeLabels.every(l=>!(p.labels||[]).includes(l)));
   if(ingKeyword) pool=pool.filter(p=>p.menu.includes(ingKeyword)||(p.ingredients||[]).some(i=>i.n.includes(ingKeyword)));
   if(excludeMenus&&excludeMenus.size) pool=pool.filter(p=>!excludeMenus.has(p.menu));
+  // ★V2.4.0修正：直近1ヶ月以内に牛肉料理を使っていれば、牛肉が明示的に指定されていない限り候補から除外
+  if(beefUsedInLastMonth&&!requireLabels.includes('牛')) pool=pool.filter(p=>!(p.labels||[]).includes('牛'));
   pool=pool.filter(p=>{
     if(recentUsed.has(p.menu))return false;
     let g=0,b=0;
@@ -2170,7 +2216,7 @@ function getRandomPreset(opts){
       if(k.split('_').slice(2).join('_')===p.menu||k==='allmenus_'+p.menu){g+=v.good;b+=v.bad;}
     });
     if(b>0&&b>g)return false;
-    if(everUsed.has(p.menu)&&g===0&&b===0)return false;
+    // ★V2.3.0修正：使用済みだが未評価という理由だけで永久除外しない（recentUsedの期間のみで十分）
     return true;
   });
   if(!pool.length)return null;
@@ -2191,7 +2237,7 @@ function getDayLabelRules(d, weekEpoch){
     ],
     '火': [{requireLabels:['海老'], excludeLabels:['レトルト完成品']}],
     '水': [{requireLabels:['魚'], excludeLabels:['レトルト完成品']}],
-    '金': [{requireLabels:[friLabel], excludeLabels:['魚','レトルト完成品']}],
+    '金': [{requireLabels:[friLabel], excludeLabels:['魚','海老','レトルト完成品']}],
   };
   return rules[d]||null;
 }
