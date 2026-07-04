@@ -401,8 +401,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.1.0（2026-07-04 主菜ランダム選定の重複修正版）
+// 夕食献立管理アプリ V2.2.0（2026-07-04 初回ロック・パスワード共通化版）
 // 変更履歴（Changelog）
+// V2.2.0:
+//  [C-1] passwordEnabledの初期値をtrueに変更。全端末が初回アクセス時から真にロック状態になる
+//  [C-2] settings（パスワード保護ON/OFF・管理者/評価者パスワード）をGist同期対象に復帰。全端末でパスワードが共通化される（V2.0.0 [S-1]を撤回）
+//  [C-3] 上記に伴い、PAT保有端末はsettingsも書き換え可能になる点に留意（家族利用前提のトレードオフ）
 // V2.1.0:
 //  [B-1] getFlavorFamily()を新設し、麻婆/カレー等のフレーバー系統重複を新たに判定
 //  [B-2] pickRandom()・randomizeDays()の重複判定をisDuplicateCandidate()に集約し、両関数へ主原材料ラベル＋フレーバー系統重複チェックを適用
@@ -861,7 +865,7 @@ const AEON_SALADS=[
 ];
 
 const SEED = {
-  settings:{adminPassword:"0000",raterPassword:"1111",passwordEnabled:false},
+  settings:{adminPassword:"0000",raterPassword:"1111",passwordEnabled:true},
   weeks:{}
 };
 
@@ -2952,11 +2956,8 @@ async function syncFromGist(){
     const localTs=localStorage.getItem('menuApp_localUpdatedAt')||'';
     const gistMenuTs=raw.menuUpdatedAt||raw.updatedAt||'';
     if(raw.menuApp_v4&&!(localTs&&gistMenuTs&&localTs>gistMenuTs)){
+      // ★V2.2.0修正：settings（パスワード等）も全端末で共通化するため、Gist側の内容をそのまま反映する
       const incoming=raw.menuApp_v4;
-      // ★S-1修正：認証情報(settings)はGistから受け取らず、常にこの端末の設定を維持する
-      if(incoming.settings)delete incoming.settings;
-      const cur=JSON.parse(localStorage.getItem('menuApp_v4')||'null');
-      incoming.settings=(cur&&cur.settings)?cur.settings:JSON.parse(JSON.stringify(SEED.settings));
       localStorage.setItem('menuApp_v4',JSON.stringify(incoming));
       if(gistMenuTs)localStorage.setItem('menuApp_localUpdatedAt',gistMenuTs);
     }
@@ -2988,13 +2989,9 @@ async function manualSync(){
     const file=gist.files&&gist.files['menuapp-data.json'];
     if(!file){showRatingToast('⚠️ データが見つかりません');return;}
     const raw=JSON.parse(file.content);
-    // 手動同期は常にGistの内容を優先して強制的に反映する（★S-1修正：認証情報のみ端末側を維持）
+    // 手動同期は常にGistの内容を優先して強制的に反映する（★V2.2.0修正：settingsも共通化のため反映対象に含める）
     if(raw.menuApp_v4){
-      const incoming=raw.menuApp_v4;
-      if(incoming.settings)delete incoming.settings;
-      const cur=JSON.parse(localStorage.getItem('menuApp_v4')||'null');
-      incoming.settings=(cur&&cur.settings)?cur.settings:JSON.parse(JSON.stringify(SEED.settings));
-      localStorage.setItem('menuApp_v4',JSON.stringify(incoming));
+      localStorage.setItem('menuApp_v4',JSON.stringify(raw.menuApp_v4));
     }
     if(raw.ratings_v2)localStorage.setItem('ratings_v2',JSON.stringify(raw.ratings_v2));
     if(raw.presetEdits){localStorage.setItem('menuApp_preset_edits',JSON.stringify(raw.presetEdits));PRESET_EDITS=raw.presetEdits;}
@@ -3055,9 +3052,8 @@ async function pushMenuToGist(notify){
     const k=localStorage.key(i);
     if(k&&k.startsWith('shop_')){try{shopChecks[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
   }
-  // ★S-1修正：パスワード等の認証情報(settings)はGistへ送信しない
+  // ★V2.2.0修正：全端末でパスワードを共通化するため、settingsも通常通りGistへ送信する
   const db=JSON.parse(localStorage.getItem('menuApp_v4')||'null');
-  if(db&&db.settings)delete db.settings;
   const now=new Date().toISOString();
   const ok=await writeGist({
     ...current,
