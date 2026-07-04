@@ -400,6 +400,23 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 
 </div>
 <script>
+// =====================================================
+// 夕食献立管理アプリ V2.1.0（2026-07-04 主菜ランダム選定の重複修正版）
+// 変更履歴（Changelog）
+// V2.1.0:
+//  [B-1] getFlavorFamily()を新設し、麻婆/カレー等のフレーバー系統重複を新たに判定
+//  [B-2] pickRandom()・randomizeDays()の重複判定をisDuplicateCandidate()に集約し、両関数へ主原材料ラベル＋フレーバー系統重複チェックを適用
+//  [B-3] pickRandom()に主原材料ラベル（豚/牛/鶏/魚/海老）の重複チェックを追加（従来は食材名一致のみだった）
+// V2.0.0:
+//  [S-1] パスワード等の認証情報(settings)をGist同期対象から除外（送信時に除去・受信時に無視し端末側を維持）
+//  [S-2] Gist書込を役割ベース化（admin=献立+評価 / rater=評価のみ / 権限なし端末は警告なしでスキップ）
+//  [S-3] menuUpdatedAt/ratingsUpdatedAtを分離し競合検出を追加（評価pushによる献立巻き戻し・後勝ち消失を防止）
+//  [S-4] GitHub API GETにPAT認証を付与（レート制限60→5000回/時）、取得失敗時は書込を中止（空データ上書き防止）
+//  [A-1] esc()に「'」を追加、jsArg()導入によりonclick内へのクォート注入・表示破壊を修正
+//  [A-2] プリセット編集(PRESET_EDITS)を献立追加・ランダム選定・検索に反映し、Gist同期対象へ追加
+//  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
+//  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
+// =====================================================
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -872,6 +889,10 @@ let adminUnlocked=getRole()==='admin';
 const ALL_PRESETS=PRESET_DISHES.filter(p=>!(p.labels||[]).includes('汁物'));
 let PRESET_EDITS=JSON.parse(localStorage.getItem('menuApp_preset_edits')||'{}');
 function savePresetEdits(){localStorage.setItem('menuApp_preset_edits',JSON.stringify(PRESET_EDITS));}
+// ★A-2修正：プリセット編集(PRESET_EDITS)を反映した一覧を返す共通関数（追加・抽選・検索はここを経由する）
+function getMergedPresets(){return ALL_PRESETS.map(p=>PRESET_EDITS[p.menu]?Object.assign({},p,PRESET_EDITS[p.menu],{_orig:p.menu}):p);}
+// ★A-2修正：編集後の名称・編集前の名称どちらでも検索できるプリセット取得関数
+function findPreset(menuName){return getMergedPresets().find(p=>p.menu===menuName||p._orig===menuName)||null;}
 
 // ===================== STATE =====================
 const DAYS=['月','火','水','木','金','土','日'];
@@ -950,9 +971,18 @@ function updateRoleButton(){
   else{btn.textContent='🔒';btn.title='タップして評価機能を解除';}
 }
 // ===================== BACKUP / RESTORE =====================
-const BACKUP_VERSION=1;
+const BACKUP_VERSION=2;
 function backupJSON(){
-  const payload={version:BACKUP_VERSION,exportedAt:new Date().toISOString(),data:DB};
+  // ★A-3修正：評価・投票履歴・プリセット編集・手配チェックも含めた完全バックアップ(version:2)
+  const shopChecks={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('shop_')){try{shopChecks[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
+  }
+  const payload={version:BACKUP_VERSION,exportedAt:new Date().toISOString(),data:DB,
+    ratings:getRatings(),myVotes:getMyVotes(),
+    presetEdits:JSON.parse(localStorage.getItem('menuApp_preset_edits')||'{}'),
+    shopChecks};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -972,11 +1002,17 @@ function onRestoreFileSelected(e){
     let payload;
     try{payload=JSON.parse(ev.target.result);}
     catch{alert('JSONファイルの読み込みに失敗しました。');return;}
-    if(!payload.version||!payload.data||!payload.data.weeks){
+    // ★A-3修正：weeksの型まで検証（破損JSONによる起動不能を防止）
+    if(!payload.version||!payload.data||!payload.data.weeks||typeof payload.data.weeks!=='object'){
       alert('このファイルは有効なバックアップデータではありません。');return;
     }
     appConfirm('現在のデータをバックアップファイルで上書きします。よろしいですか？',()=>{
       localStorage.setItem('menuApp_v4',JSON.stringify(payload.data));
+      // ★A-3修正：version:2バックアップは評価・投票・プリセット編集・手配チェックも復元する（v1はdataのみ）
+      if(payload.ratings)localStorage.setItem('ratings_v2',JSON.stringify(payload.ratings));
+      if(payload.myVotes)localStorage.setItem('my_votes',JSON.stringify(payload.myVotes));
+      if(payload.presetEdits)localStorage.setItem('menuApp_preset_edits',JSON.stringify(payload.presetEdits));
+      if(payload.shopChecks)Object.entries(payload.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
       alert('復元が完了しました。画面を再読み込みします。');
       location.reload();
     });
@@ -1210,8 +1246,8 @@ function renderMenuTab(weekData){
         <span class="side-name">${esc(s.name)}</span>
         ${shopIngBadge(st)}
         <div class="rating-btns" style="display:flex;gap:4px;margin-left:auto">
-          <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${esc(s.name)}','good')">👍${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||''}</button>
-          <button class="rating-btn bad${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad>0?' active':''}" onclick="toggleRating('${wk}','${d}','${esc(s.name)}','bad')">👎${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad||''}</button>
+          <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','good')">👍${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||''}</button>
+          <button class="rating-btn bad${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','bad')">👎${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad||''}</button>
         </div>
       </div>`;
     }).join('');
@@ -1229,6 +1265,8 @@ function goEditWeek(weekKey,day){
     state.pendingEditDay=day;
     go('admin-login');
   }else{
+    // ★S-2修正：パスワード無効時も管理者役割を付与（Web保存の権限判定を通すため）
+    adminUnlocked=true;setRole('admin');
     state.editingWeekKey=weekKey;
     go('admin-week');
     setTimeout(()=>{
@@ -1240,7 +1278,7 @@ function goEditWeek(weekKey,day){
 function renderDishCard(dish,dishIdx,weekKey,day){
   const shopChecks=weekKey?getShopChecks(weekKey):{};
   const _persons=getPersonCount(dish.target);
-  const canEdit=!!(weekKey&&day);
+  const canEdit=!!(weekKey&&day)&&getRole()==='admin';
   const ings=dish.ingredients.map((i,ii)=>{
     const st=shopChecks[i.n.trim()]||null;
     const baseAmt=getIngAmount(i,_persons);
@@ -1256,7 +1294,7 @@ function renderDishCard(dish,dishIdx,weekKey,day){
   let ratingHtml='';
   if(weekKey&&day){
     const r=getRatings()[ratingKey(weekKey,day,dish.menu)]||{good:0,bad:0};
-    const mn=dish.menu.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const mn=jsArg(dish.menu);
     ratingHtml=`<div class="dish-rating">
       <button class="rating-btn good" onclick="toggleRating('${esc(weekKey)}','${esc(day)}','${mn}','good')">👍 ${r.good}</button>
       <button class="rating-btn bad"  onclick="toggleRating('${esc(weekKey)}','${esc(day)}','${mn}','bad')">👎 ${r.bad}</button>
@@ -1273,7 +1311,7 @@ function renderDishCard(dish,dishIdx,weekKey,day){
     </div>
     <div class="dish-section"><h4>🥬 材料</h4>${ings}</div>
     ${day==='金'?`<div class="dish-section" style="padding-top:8px;padding-bottom:8px"><div class="note-box">🥕 残りの野菜があれば使用してください</div></div>`:''}
-    <div class="dish-section no-print" style="padding-top:8px;padding-bottom:8px"><button onclick="openChatGPT('${esc(dish.menu)}',${_persons})" style="background:#10a37f;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:16px;cursor:pointer;width:100%">🤖 ChatGPTで調理手順を確認</button></div>
+    <div class="dish-section no-print" style="padding-top:8px;padding-bottom:8px"><button onclick="openChatGPT('${jsArg(dish.menu)}',${_persons})" style="background:#10a37f;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:16px;cursor:pointer;width:100%">🤖 ChatGPTで調理手順を確認</button></div>
     ${equips?`<div class="dish-section"><h4>🍳 使う道具</h4><div class="equip-list">${equips}</div></div>`:''}
     ${note}
     ${ratingHtml}
@@ -1308,7 +1346,8 @@ function renderShopTab(weekData,weekKey){
 function goShopAdmin(weekKey){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
   if(pwEnabled){state.pendingEditWeekKey=weekKey;state.pendingEditDay=null;go('admin-login');}
-  else{state.editingWeekKey=weekKey;go('admin-week');setTimeout(()=>{showAdminShopTab();},50);}
+  // ★S-2修正：パスワード無効時も管理者役割を付与（Web保存の権限判定を通すため）
+  else{adminUnlocked=true;setRole('admin');state.editingWeekKey=weekKey;go('admin-week');setTimeout(()=>{showAdminShopTab();},50);}
 }
 
 function getShopChecks(weekKey){
@@ -1552,8 +1591,8 @@ function renderAdminShopChecklist(){
     const items=cat.items.map(item=>{
       const ck=savedChecks[item.id]||false;
       const st=savedChecks[item.id]||null;
-      const mn=item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div class="shop-item" onclick="toggleShop('${k}','${item.id}');renderAdminShopChecklist();renderWeekContent()" style="cursor:pointer">
+      const mn=jsArg(item.name);
+      return `<div class="shop-item" onclick="toggleShop('${k}','${jsArg(item.id)}');renderAdminShopChecklist();renderWeekContent()" style="cursor:pointer">
         <div style="flex:1"><div class="shop-item-name">${esc(item.name)}</div>
           <div class="shop-item-detail">${esc(item.detail)}</div></div>
         ${shopBadge(st)}
@@ -1745,7 +1784,8 @@ function saveAdminWeek(){
     catch(e){showRatingToast('⚠️ 保存失敗：ストレージ容量不足です');return;}
     localStorage.setItem('menuApp_localUpdatedAt',new Date().toISOString());
     showRatingToast('⏳ Webに保存中...');
-    const ok=await pushMenuToGist();
+    // ★S-2修正：明示保存なので失敗理由の通知を有効化(notify=true)
+    const ok=await pushMenuToGist(true);
     if(ok)showRatingToast('✅ Webに保存しました');
     // 失敗時はwriteGist内で理由付きのトーストが既に表示される
     renderAdminShopChecklist();
@@ -1770,7 +1810,7 @@ function updatePresetList(){
   const MAX=80;
   const dishIdx=awPresetForDish;
   const items=filtered.slice(0,MAX).map(d=>{
-    const mn=d.menu.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const mn=jsArg(d.menu);
     const lbls=(d.labels||[]).slice(0,3).join('・');
     return `<div class="preset-item">
       <div class="preset-item-info">
@@ -1784,7 +1824,8 @@ function updatePresetList(){
   el.innerHTML=items+more;
 }
 function filterPresets(query,activeLabels){
-  return ALL_PRESETS.filter(d=>{
+  // ★A-2修正：検索・絞り込みもプリセット編集を反映した一覧を対象とする
+  return getMergedPresets().filter(d=>{
     const lbls=d.labels||[];
     const matchLabel=!activeLabels||!activeLabels.length||activeLabels.every(l=>lbls.includes(l));
     const matchQ=!query||d.menu.includes(query)||(d.ingredients&&d.ingredients.some(i=>i.n&&i.n.includes(query)));
@@ -1869,7 +1910,7 @@ function updatePresetOverlayList(){
   const filtered=filterPresets(awPresetFilter,awActiveLabels);
   const MAX=100;
   const items=filtered.slice(0,MAX).map(d=>{
-    const mn=d.menu.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const mn=jsArg(d.menu);
     const ingList=d.ingredients?d.ingredients.slice(0,3).map(i=>i.n).join('・'):'';
     const lbls=(d.labels||[]).slice(0,4).join(' ');
     return `<div class="preset-item" style="padding:12px 16px" onclick="addPresetDishFromOverlay(${dishIdx},'${mn}')">
@@ -1895,12 +1936,15 @@ function closePresetOverlay(){
 }
 function renderPresetPicker(dishIdx){return '';}
 function addPresetDish(dishIdx,menuName){
-  const dish=ALL_PRESETS.find(p=>p.menu===menuName);
+  // ★A-2修正：プリセット編集を反映した内容で週に追加する
+  const dish=findPreset(menuName);
   if(!dish)return;
   const d=awDayState.day;
   if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
   const prevTarget=awDayState.days[d].dishes[dishIdx]?.target;
   awDayState.days[d].dishes[dishIdx]=JSON.parse(JSON.stringify(dish));
+  // 内部管理用キー(_orig)は週データへ保存しない
+  delete awDayState.days[d].dishes[dishIdx]._orig;
   if(prevTarget)awDayState.days[d].dishes[dishIdx].target=prevTarget;
   awPresetForDish=null;
   renderAdminDayContent();
@@ -1925,7 +1969,7 @@ function renderSideOverlay(){
   const type=awSidePickerType;
   const list=type==='サラダ'?AEON_SALADS:AEON_SIDES;
   const cats=['すべて',...new Set(list.map(s=>(s.labels||[])[0]||''))];
-  const catBtns=cats.map(c=>`<button class="preset-cat-btn${awSidePickerCat===c?' active':''}" style="flex-shrink:0;font-size:12px;padding:4px 10px" onclick="awSidePickerCat='${esc(c)}';updateSideOverlayList()">${esc(c)}</button>`).join('');
+  const catBtns=cats.map(c=>`<button class="preset-cat-btn${awSidePickerCat===c?' active':''}" style="flex-shrink:0;font-size:12px;padding:4px 10px" onclick="awSidePickerCat='${jsArg(c)}';updateSideOverlayList()">${esc(c)}</button>`).join('');
   ov.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
       <button onclick="closeSideOverlay()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--navy);padding:0 4px">←</button>
@@ -2006,6 +2050,7 @@ function getIngAmount(ing,persons){
   return isWeekSeasoning(ing.n)?ing.a:scaleAmount(ing.a,persons);
 }
 function editIngAmt(weekKey,day,dishIdx,ingIdx){
+  if(getRole()!=='admin'){showRatingToast('🔒 材料の編集には管理者権限が必要です');return;}
   const week=DB.weeks[weekKey];
   if(!week)return;
   const ing=week.menus[day].dishes[dishIdx].ingredients[ingIdx];
@@ -2035,7 +2080,8 @@ function scaleAmount(str,n){
   if(!scaleUnits.some(u=>str.includes(u)))return str;
   const nm=str.match(/^([\d]+(?:\/[\d]+)?(?:\.\d+)?)(.*?)(?:（([\d.]+)(g|ml|cc)）(.*))?$/);
   if(nm){
-    const base=nm[1].includes('/')?eval(nm[1]):parseFloat(nm[1]);
+    // ★A-4修正：eval()を廃止し、分数「a/b」を明示的な除算で解釈する
+    const base=nm[1].includes('/')?(function(){const f=nm[1].split('/');return parseFloat(f[0])/parseFloat(f[1]);})():parseFloat(nm[1]);
     const unit=nm[2]||'';
     const bracketNum=nm[3];const bracketUnit=nm[4];const bracketSuffix=nm[5]||'';
     const primaryScaleable=scaleUnits.some(u=>unit===u||unit.endsWith(u));
@@ -2054,6 +2100,39 @@ function _fmtNum(v){
   return String(Math.round(v*10)/10);
 }
 function getMainIngs(dish){return(dish.ingredients||[]).map(i=>i.n).filter(n=>!isWeekSeasoning(n));}
+// 主原材料ラベル（豚/牛/鶏/魚/海老）。pickRandom()・randomizeDays()の重複判定で共通使用
+const PROTEIN_LABELS=['豚','牛','鶏','魚','海老'];
+// ランダム抽選の重複回避判定をデバッグしたい場合はtrueにする（console.debugにログ出力）
+const DEBUG_RANDOM=false;
+// メニュー名からフレーバー系統（麻婆・カレー等）を判定する。ALL_PRESETS内の実メニュー名を走査して決定したパターン
+function getFlavorFamily(menuName){
+  if(!menuName)return null;
+  if(/麻婆/.test(menuName))return '麻婆';
+  if(/カレー/.test(menuName))return 'カレー';
+  if(/トマト/.test(menuName))return 'トマト';
+  if(/クリーム/.test(menuName))return 'クリーム';
+  if(/味噌|みそ/.test(menuName))return '味噌';
+  if(/ガーリック/.test(menuName))return 'ガーリック';
+  if(/甘酢/.test(menuName))return '甘酢';
+  if(/甘辛/.test(menuName))return '甘辛';
+  if(/オイスター/.test(menuName))return 'オイスター';
+  if(/照り焼き|照り煮/.test(menuName))return '照り焼き';
+  return null;
+}
+// pickRandom()・randomizeDays()共通の重複判定（主要食材／主原材料ラベル／フレーバー系統）
+function isDuplicateCandidate(candidate,ctx){
+  const{weekUsedIngs,usedProteins,skipProteinCheck,usedFlavors}=ctx;
+  const ings=getMainIngs(candidate);
+  const hasIngOverlap=ings.some(i=>weekUsedIngs.has(i));
+  const proteins=(candidate.labels||[]).filter(l=>PROTEIN_LABELS.includes(l));
+  const hasProteinOverlap=!skipProteinCheck&&proteins.some(p=>usedProteins.has(p));
+  const flavor=getFlavorFamily(candidate.menu);
+  const hasFlavorOverlap=!!flavor&&usedFlavors.has(flavor);
+  if(DEBUG_RANDOM&&(hasIngOverlap||hasProteinOverlap||hasFlavorOverlap)){
+    console.debug('[randomSelect] duplicate skip',{menu:candidate.menu,hasIngOverlap,hasProteinOverlap,hasFlavorOverlap,flavor});
+  }
+  return hasIngOverlap||hasProteinOverlap||hasFlavorOverlap;
+}
 // opts: { requireLabels:string[], excludeLabels:string[], ingKeyword:string, excludeMenus:Set }
 function getRandomPreset(opts){
   opts=opts||{};
@@ -2074,7 +2153,8 @@ function getRandomPreset(opts){
       });
     });
   });
-  let pool=ALL_PRESETS.slice();
+  // ★A-2修正：ランダム選定もプリセット編集を反映した一覧から抽選する
+  let pool=getMergedPresets();
   if(requireLabels.length) pool=pool.filter(p=>requireLabels.every(l=>(p.labels||[]).includes(l)));
   if(excludeLabels.length) pool=pool.filter(p=>excludeLabels.every(l=>!(p.labels||[]).includes(l)));
   if(ingKeyword) pool=pool.filter(p=>p.menu.includes(ingKeyword)||(p.ingredients||[]).some(i=>i.n.includes(ingKeyword)));
@@ -2090,7 +2170,10 @@ function getRandomPreset(opts){
     return true;
   });
   if(!pool.length)return null;
-  return pool[Math.floor(Math.random()*pool.length)];
+  // ★A-2修正：抽選結果は複製して内部管理用キー(_orig)を除去してから返す（週データへの混入防止）
+  const picked=JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
+  delete picked._orig;
+  return picked;
 }
 // 曜日ごとのラベルルール定義
 // 各エントリ: {requireLabels:[], excludeLabels:[], ingKeyword:''}
@@ -2123,21 +2206,27 @@ function pickRandom(dishIdx){
     // フィルタUI選択を使用
     reqLabels=awActiveLabels&&awActiveLabels.length?awActiveLabels:[];
   }
-  // 今週すでに使っている主材料を収集
+  // 今週すでに使っている主材料・主原材料ラベル・フレーバー系統を収集
   const weekUsedIngs=new Set();
+  const weekUsedProteins=new Set();
+  const weekUsedFlavors=new Set();
   Object.values(awDayState.days).forEach(dayData=>{
     (dayData.dishes||[]).forEach((dish,i)=>{
       if(dayData===awDayState.days[d]&&i===dishIdx)return;
       getMainIngs(dish).forEach(ing=>weekUsedIngs.add(ing));
+      (dish.labels||[]).filter(l=>PROTEIN_LABELS.includes(l)).forEach(p=>weekUsedProteins.add(p));
+      const fam=getFlavorFamily(dish.menu);
+      if(fam)weekUsedFlavors.add(fam);
     });
   });
+  // ラベルで魚・海老等が指定必須の場合は主原材料ラベルの重複チェック対象外
+  const skipProteinCheck=reqLabels.some(l=>PROTEIN_LABELS.includes(l));
   const excludeMenus=new Set();
   let result=null;
   for(let attempt=0;attempt<6;attempt++){
     const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword,excludeMenus});
     if(!candidate)break;
-    const ings=getMainIngs(candidate);
-    if(!ings.some(i=>weekUsedIngs.has(i))){result=candidate;break;}
+    if(!isDuplicateCandidate(candidate,{weekUsedIngs,usedProteins:weekUsedProteins,skipProteinCheck,usedFlavors:weekUsedFlavors})){result=candidate;break;}
     excludeMenus.add(candidate.menu);
     if(attempt===5)result=candidate;
   }
@@ -2205,7 +2294,7 @@ function randomizeDays(cookDays){
   };
   const weekUsedIngs=new Set(); // 週内で使用済みの主要食材
   const weekUsedProteins=new Set(); // 週内で使用済みの主食材ラベル（豚/牛/鶏/魚/海老）
-  const PROTEIN_LABELS=['豚','牛','鶏','魚','海老'];
+  const weekUsedFlavors=new Set(); // 週内で使用済みのフレーバー系統（麻婆/カレー等）
   // 今回再抽選しない曜日の既存データを、重複回避の基準として取り込む
   allCookDays.forEach(d=>{
     if(cookDays.includes(d))return;
@@ -2214,6 +2303,8 @@ function randomizeDays(cookDays){
     (dayData.dishes||[]).forEach(dish=>{
       getMainIngs(dish).forEach(i=>weekUsedIngs.add(i));
       (dish.labels||[]).filter(l=>PROTEIN_LABELS.includes(l)).forEach(p=>weekUsedProteins.add(p));
+      const fam=getFlavorFamily(dish.menu);
+      if(fam)weekUsedFlavors.add(fam);
     });
     (dayData.sides||[]).forEach(s=>{if(s.name)weekUsedSideNames.add(s.name);});
   });
@@ -2254,14 +2345,11 @@ function randomizeDays(cookDays){
       for(let attempt=0;attempt<6;attempt++){
         const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword,excludeMenus});
         if(!candidate)break;
-        const ings=getMainIngs(candidate);
-        const hasIngOverlap=ings.some(i=>weekUsedIngs.has(i));
-        const proteins=(candidate.labels||[]).filter(l=>PROTEIN_LABELS.includes(l));
         const relevantUsedProteins=d==='月'?new Set([...weekUsedProteins,...prevFridayProteins]):weekUsedProteins;
-        const hasProteinOverlap=!skipProteinCheck&&proteins.some(p=>relevantUsedProteins.has(p));
+        const isDup=isDuplicateCandidate(candidate,{weekUsedIngs,usedProteins:relevantUsedProteins,skipProteinCheck,usedFlavors:weekUsedFlavors});
         const method=getCookMethod(candidate.menu);
         const hasMethodConflict=itemIdx===0&&method!=='その他'&&method===prevDayMethod;
-        if(!hasIngOverlap&&!hasProteinOverlap&&!hasMethodConflict){r=candidate;break;}
+        if(!isDup&&!hasMethodConflict){r=candidate;break;}
         excludeMenus.add(candidate.menu);
         // 5回目はあきらめて最後の候補を使う
         if(attempt===5)r=candidate;
@@ -2269,6 +2357,8 @@ function randomizeDays(cookDays){
       if(r){
         getMainIngs(r).forEach(i=>weekUsedIngs.add(i));
         (r.labels||[]).filter(l=>PROTEIN_LABELS.includes(l)).forEach(p=>weekUsedProteins.add(p));
+        const rFam=getFlavorFamily(r.menu);
+        if(rFam)weekUsedFlavors.add(rFam);
         if(itemIdx===0)prevDayMethod=getCookMethod(r.menu);
         const dish=JSON.parse(JSON.stringify(r));
         dish.target=(dayTargets[d]&&dayTargets[d][itemIdx])||'3人分';
@@ -2414,7 +2504,7 @@ function renderAllMenus(){
 
   // Label filter chips (main menu)
   const extraCats=['副菜','サラダ'];
-  const mainCatBtns=['すべて',...extraCats].map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${esc(c)}';allMenusLabels=[];renderAllMenus()">${esc(c)}</button>`).join('');
+  const mainCatBtns=['すべて',...extraCats].map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${jsArg(c)}';allMenusLabels=[];renderAllMenus()">${esc(c)}</button>`).join('');
   const catsEl=document.getElementById('all-menus-cats');
   const labelEl=document.getElementById('all-menus-labels');
   const inLabelMode=!['副菜','サラダ'].includes(allMenusCat)&&allMenusLabels.length>0;
@@ -2430,7 +2520,7 @@ function renderAllMenus(){
     genreEl.innerHTML='';genreEl.style.display='none';
   }else if(allMenusCat==='副菜'){
     const sideGenres=['すべて',...new Set(AEON_SIDES.flatMap(s=>s.labels||[]))];
-    genreEl.innerHTML=sideGenres.map(g=>`<button class="preset-cat-btn${allMenusGenre===g?' active':''}" style="flex-shrink:0;font-size:13px;padding:6px 10px" onclick="allMenusGenre='${esc(g)}';renderAllMenus()">${esc(g)}</button>`).join('');
+    genreEl.innerHTML=sideGenres.map(g=>`<button class="preset-cat-btn${allMenusGenre===g?' active':''}" style="flex-shrink:0;font-size:13px;padding:6px 10px" onclick="allMenusGenre='${jsArg(g)}';renderAllMenus()">${esc(g)}</button>`).join('');
     genreEl.style.display='flex';
   }else{
     genreEl.innerHTML='';genreEl.style.display='none';
@@ -2456,7 +2546,7 @@ function renderAllMenus(){
       const dateStr=lu?`📅 ${new Date(lu+'T00:00:00').getMonth()+1}/${new Date(lu+'T00:00:00').getDate()}選定`:'未選定';
       const rk='allmenus_'+baseP.menu;
       const r=ratings[rk]||{good:0,bad:0};
-      const orig=baseP.menu.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const orig=jsArg(baseP.menu);
       const isOpen=allMenusSelected===baseP.menu;
       const ingHtml=(p.ingredients||[]).map(i=>{const amt=i.a1!=null?i.a1:i.a;return `<span style="display:inline-block;background:#f0f0f0;border-radius:8px;padding:2px 8px;margin:2px;font-size:12px">${esc(i.n)}${amt?` <span style="color:var(--gray)">${esc(amt)}</span>`:''}</span>`;}).join('');
       const edited=!!PRESET_EDITS[baseP.menu];
@@ -2489,7 +2579,7 @@ function renderAllMenus(){
     listHtml+=sidePool.map(s=>{
       const lu=getSideLastUsed(s.name);
       const rt=getSideRatingTotal(s.name);
-      const mn=s.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const mn=jsArg(s.name);
       return `<div class="all-menu-item">
         <div class="all-menu-info">
           <div class="all-menu-name">${esc(s.name)} <span class="tag" style="font-size:11px">副菜</span></div>
@@ -2507,7 +2597,7 @@ function renderAllMenus(){
     listHtml+=saladPool.map(s=>{
       const lu=getSideLastUsed(s.name);
       const rt=getSideRatingTotal(s.name);
-      const mn=s.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const mn=jsArg(s.name);
       return `<div class="all-menu-item">
         <div class="all-menu-info">
           <div class="all-menu-name">${esc(s.name)} <span class="tag" style="font-size:11px">サラダ</span></div>
@@ -2616,9 +2706,9 @@ function buildChatGPTPrompt(dish,persons){
   return `料理名：${dish.menu}\n\n材料（${persons}人前）:\n${ingList}\n\n上記の材料を使った「${dish.menu}」の調理手順を教えてください。\n条件：\n- 一般家庭向けで簡単に作れるもの\n${timeLimit}- 手順は3〜5ステップで番号付き\n- 各手順で使う調味料の分量の目安を記載\n- 調理時間の合計目安を最後に記載`;
 }
 function openChatGPT(menuName,persons){
-  let dish=ALL_PRESETS.find(p=>p.menu===menuName);
+  // ★A-2修正：編集反映済みプリセットを共通関数から取得する
+  const dish=findPreset(menuName);
   if(!dish)return;
-  if(PRESET_EDITS[menuName])dish={...dish,...PRESET_EDITS[menuName]};
   if(!persons)persons=getPersonCount(dish.target);
   const prompt=buildChatGPTPrompt(dish,persons);
   let ov=document.getElementById('app-modal-overlay');
@@ -2826,7 +2916,12 @@ function getPresetStats(menuName){
 }
 
 // ===================== UTIL =====================
-function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// ★A-1修正：HTMLエスケープに「'」を追加（属性値内での破壊防止）
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+// ★A-1修正：JS文字列リテラル用エスケープ（バックスラッシュ→引用符の順）
+function escJs(s){return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+// ★A-1修正：onclick等「HTML属性内のJS文字列引数」専用エスケープ（escJs→escの順で適用）
+function jsArg(s){return esc(escJs(s));}
 
 // ===================== GIST SYNC =====================
 // ↓ GistのIDをここに入力してください（作成したGistのURLの末尾の英数字）
@@ -2834,25 +2929,49 @@ const GIST_ID = 'c383bc2d0efaa0a832fee81448096478';
 // ↑ 例: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4'
 
 function getGistId(){return GIST_ID&&GIST_ID!=='YOUR_GIST_ID_HERE'?GIST_ID:null;}
+// ★S-4修正：共通ヘッダ生成。PATがあれば認証付きGETにしてレート制限(未認証60回/時)を回避する
+function gistHeaders(){
+  const h={'Accept':'application/vnd.github+json'};
+  const pat=localStorage.getItem('menuApp_gistPat');
+  if(pat)h.Authorization=`token ${pat}`;
+  return h;
+}
+// ★S-2修正：評価の書込可否（管理者・評価者の端末かつPAT設定済みのみ）
+function canPushRatings(){const r=getRole();return (r==='admin'||r==='rater')&&!!localStorage.getItem('menuApp_gistPat');}
 async function syncFromGist(){
   const gistId=getGistId();
   if(!gistId)return;
   try{
-    const res=await fetch(`https://api.github.com/gists/${gistId}`);
+    const res=await fetch(`https://api.github.com/gists/${gistId}`,{headers:gistHeaders()});
     if(!res.ok)return;
     const gist=await res.json();
     const file=gist.files&&gist.files['menuapp-data.json'];
     if(!file)return;
     const raw=JSON.parse(file.content);
-    // ローカルの最終保存時刻がGistより新しい場合は上書きしない
+    // ★S-3修正：献立本体は「献立の更新時刻(menuUpdatedAt)」で比較する（評価pushによる巻き戻し防止）
     const localTs=localStorage.getItem('menuApp_localUpdatedAt')||'';
-    const gistTs=raw.updatedAt||'';
-    if(localTs&&gistTs&&localTs>gistTs){
-      console.log('Local data is newer than Gist, skipping overwrite');
-      return;
+    const gistMenuTs=raw.menuUpdatedAt||raw.updatedAt||'';
+    if(raw.menuApp_v4&&!(localTs&&gistMenuTs&&localTs>gistMenuTs)){
+      const incoming=raw.menuApp_v4;
+      // ★S-1修正：認証情報(settings)はGistから受け取らず、常にこの端末の設定を維持する
+      if(incoming.settings)delete incoming.settings;
+      const cur=JSON.parse(localStorage.getItem('menuApp_v4')||'null');
+      incoming.settings=(cur&&cur.settings)?cur.settings:JSON.parse(JSON.stringify(SEED.settings));
+      localStorage.setItem('menuApp_v4',JSON.stringify(incoming));
+      if(gistMenuTs)localStorage.setItem('menuApp_localUpdatedAt',gistMenuTs);
     }
-    if(raw.menuApp_v4)localStorage.setItem('menuApp_v4',JSON.stringify(raw.menuApp_v4));
-    if(raw.ratings_v2)localStorage.setItem('ratings_v2',JSON.stringify(raw.ratings_v2));
+    // ★S-3修正：競合検出の基準となる「最後に確認したGist側の献立時刻」を記録する
+    if(gistMenuTs)localStorage.setItem('menuApp_lastSyncedMenuTs',gistMenuTs);
+    // 評価はキー単位でマージ（起動時の取り込みはGist側を優先）
+    if(raw.ratings_v2){
+      const localR=getRatings();
+      localStorage.setItem('ratings_v2',JSON.stringify(Object.assign({},localR,raw.ratings_v2)));
+    }
+    // ★A-2修正：プリセット編集内容も全端末へ反映する
+    if(raw.presetEdits){
+      localStorage.setItem('menuApp_preset_edits',JSON.stringify(raw.presetEdits));
+      PRESET_EDITS=raw.presetEdits;
+    }
     if(raw.shopChecks){
       Object.entries(raw.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
     }
@@ -2863,71 +2982,107 @@ async function manualSync(){
   try{
     const gistId=getGistId();
     if(!gistId){showRatingToast('⚠️ Gist IDが未設定です');return;}
-    const res=await fetch(`https://api.github.com/gists/${gistId}`);
+    const res=await fetch(`https://api.github.com/gists/${gistId}`,{headers:gistHeaders()});
     if(!res.ok){showRatingToast('⚠️ 同期失敗（'+res.status+'）');return;}
     const gist=await res.json();
     const file=gist.files&&gist.files['menuapp-data.json'];
     if(!file){showRatingToast('⚠️ データが見つかりません');return;}
     const raw=JSON.parse(file.content);
-    // 手動同期は常にGistの内容を優先して強制的に反映する
-    if(raw.menuApp_v4)localStorage.setItem('menuApp_v4',JSON.stringify(raw.menuApp_v4));
+    // 手動同期は常にGistの内容を優先して強制的に反映する（★S-1修正：認証情報のみ端末側を維持）
+    if(raw.menuApp_v4){
+      const incoming=raw.menuApp_v4;
+      if(incoming.settings)delete incoming.settings;
+      const cur=JSON.parse(localStorage.getItem('menuApp_v4')||'null');
+      incoming.settings=(cur&&cur.settings)?cur.settings:JSON.parse(JSON.stringify(SEED.settings));
+      localStorage.setItem('menuApp_v4',JSON.stringify(incoming));
+    }
     if(raw.ratings_v2)localStorage.setItem('ratings_v2',JSON.stringify(raw.ratings_v2));
+    if(raw.presetEdits){localStorage.setItem('menuApp_preset_edits',JSON.stringify(raw.presetEdits));PRESET_EDITS=raw.presetEdits;}
     if(raw.shopChecks){
       Object.entries(raw.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
     }
-    if(raw.updatedAt)localStorage.setItem('menuApp_localUpdatedAt',raw.updatedAt);
+    const ts=raw.menuUpdatedAt||raw.updatedAt||'';
+    if(ts){localStorage.setItem('menuApp_localUpdatedAt',ts);localStorage.setItem('menuApp_lastSyncedMenuTs',ts);}
     DB=loadData();
     render();
     showRatingToast('✅ 最新の献立に同期しました');
   }catch(e){showRatingToast('⚠️ 同期エラー：ネットワークを確認してください');}
 }
 async function fetchGistCurrent(){
+  // ★S-4修正：取得失敗時はnullを返し、呼び出し側で書込を中止する（空データ上書きによる評価・献立消失を防止）
   const gistId=getGistId();
-  if(!gistId)return{version:1};
+  if(!gistId)return null;
   try{
-    const res=await fetch(`https://api.github.com/gists/${gistId}`);
-    if(!res.ok)return{version:1};
+    const res=await fetch(`https://api.github.com/gists/${gistId}`,{headers:gistHeaders()});
+    if(!res.ok)return null;
     const gist=await res.json();
     const file=gist.files&&gist.files['menuapp-data.json'];
     if(!file)return{version:1};
     return JSON.parse(file.content)||{version:1};
-  }catch(e){return{version:1};}
+  }catch(e){return null;}
 }
-async function writeGist(payload){
+async function writeGist(payload,notify){
   const gistId=getGistId();
   const pat=localStorage.getItem('menuApp_gistPat');
-  if(!gistId){showRatingToast('⚠️ Gist IDが未設定のためWebに保存されません');return false;}
-  if(!pat){showRatingToast('⚠️ PAT未設定のためWebに保存されません（設定画面で入力してください）');return false;}
+  // ★S-2修正：失敗トーストは明示保存時(notify=true)のみ表示（閲覧端末での警告乱発を防止）
+  if(!gistId){if(notify)showRatingToast('⚠️ Gist IDが未設定のためWebに保存されません');return false;}
+  if(!pat){if(notify)showRatingToast('⚠️ PAT未設定のためWebに保存されません（設定画面で入力してください）');return false;}
   try{
     const res=await fetch(`https://api.github.com/gists/${gistId}`,{
       method:'PATCH',
       headers:{Authorization:`token ${pat}`,'Content-Type':'application/json'},
       body:JSON.stringify({files:{'menuapp-data.json':{content:JSON.stringify(payload,null,2)}}})
     });
-    if(!res.ok){showRatingToast('⚠️ Web保存失敗（'+res.status+'）');return false;}
+    if(!res.ok){if(notify)showRatingToast('⚠️ Web保存失敗（'+res.status+'）');return false;}
     return true;
-  }catch(e){console.warn('Gist push failed',e);showRatingToast('⚠️ Web保存エラー：ネットワークを確認してください');return false;}
+  }catch(e){console.warn('Gist push failed',e);if(notify)showRatingToast('⚠️ Web保存エラー：ネットワークを確認してください');return false;}
 }
-async function pushMenuToGist(){
+async function pushMenuToGist(notify){
+  // ★S-2修正：献立の書込は管理者端末のみ。権限・PATが無い端末は警告なしでスキップする
+  if(getRole()!=='admin'){if(notify)showRatingToast('⚠️ 管理者権限がないためWebに保存されません');return false;}
+  if(!localStorage.getItem('menuApp_gistPat')){if(notify)showRatingToast('⚠️ PAT未設定のためWebに保存されません（設定画面で入力してください）');return false;}
   const current=await fetchGistCurrent();
+  if(current===null){if(notify)showRatingToast('⚠️ 現在データの取得に失敗したため保存を中止しました');return false;}
+  // ★S-3修正：前回同期以降に他端末がより新しい献立を保存していれば中止する（後勝ちによる消失防止）
+  const baseTs=localStorage.getItem('menuApp_lastSyncedMenuTs')||'';
+  const remoteTs=current.menuUpdatedAt||'';
+  if(remoteTs&&baseTs&&remoteTs>baseTs){
+    if(notify)showRatingToast('⚠️ 他端末の更新を検出しました。🔄同期してから再度保存してください');
+    return false;
+  }
   const shopChecks={};
   for(let i=0;i<localStorage.length;i++){
     const k=localStorage.key(i);
     if(k&&k.startsWith('shop_')){try{shopChecks[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
   }
-  return await writeGist({
+  // ★S-1修正：パスワード等の認証情報(settings)はGistへ送信しない
+  const db=JSON.parse(localStorage.getItem('menuApp_v4')||'null');
+  if(db&&db.settings)delete db.settings;
+  const now=new Date().toISOString();
+  const ok=await writeGist({
     ...current,
-    updatedAt:new Date().toISOString(),
-    menuApp_v4:JSON.parse(localStorage.getItem('menuApp_v4')||'null'),
-    shopChecks
-  });
+    updatedAt:now,
+    menuUpdatedAt:now,
+    menuApp_v4:db,
+    shopChecks,
+    presetEdits:JSON.parse(localStorage.getItem('menuApp_preset_edits')||'{}')
+  },notify);
+  if(ok)localStorage.setItem('menuApp_lastSyncedMenuTs',now);
+  return ok;
 }
 async function pushRatingsToGist(){
+  // ★S-2修正：評価の書込は管理者・評価者の端末のみ（閲覧端末は警告なしでスキップ）
+  if(!canPushRatings())return;
   const current=await fetchGistCurrent();
+  if(current===null)return;
+  // ★S-3修正：Gist側の評価とキー単位でマージ（この端末の評価を優先）し、献立本体(menuApp_v4)には触れない
+  const merged=Object.assign({},current.ratings_v2||{},JSON.parse(localStorage.getItem('ratings_v2')||'{}'));
+  const now=new Date().toISOString();
   await writeGist({
     ...current,
-    updatedAt:new Date().toISOString(),
-    ratings_v2:JSON.parse(localStorage.getItem('ratings_v2')||'{}')
+    updatedAt:now,
+    ratingsUpdatedAt:now,
+    ratings_v2:merged
   });
 }
 function saveGistPat(v){localStorage.setItem('menuApp_gistPat',v.trim());showRatingToast('PATを保存しました');}
@@ -2936,7 +3091,8 @@ async function testGistSync(){
   if(!gistId){showRatingToast('⚠️ Gist IDがHTMLに設定されていません');return;}
   showRatingToast('接続テスト中...');
   try{
-    const res=await fetch(`https://api.github.com/gists/${gistId}`);
+    // ★S-4修正：接続テストも認証付きGET（PAT設定済みなら）で実施する
+    const res=await fetch(`https://api.github.com/gists/${gistId}`,{headers:gistHeaders()});
     if(res.ok){showRatingToast('✅ 接続成功');}
     else{showRatingToast('❌ 接続失敗（'+res.status+'）');}
   }catch(e){showRatingToast('❌ 接続エラー');}
