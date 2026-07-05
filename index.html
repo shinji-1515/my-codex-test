@@ -401,8 +401,28 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.18.0（2026-07-05 副菜・サラダの再抽選ボタンを分離）
+// 夕食献立管理アプリ V2.26.0（2026-07-05 未確認・手配済み等バッジの文字サイズを拡大）
 // 変更履歴（Changelog）
+// V2.26.0:
+//  [AA-1] shopBadge()/shopIngBadge()の「未確認」「手配済み」「在庫あり」バッジの文字サイズを拡大（11px→15px、10px→14px）し、読みやすくした
+// V2.25.0:
+//  [Z-1] 副菜・サラダ行のgood/badボタンを、名前の右隣（横並び）からメイン料理と同じ「行の下に表示（.dish-rating流用）」に変更した
+// V2.24.0:
+//  [Y-1] renderMenuTab()の献立表示（閲覧側）で「副菜（レトルト）・袋サラダ」の単一カードを「🍱 副菜（レトルト）」「🥗 サラダ（袋）」の2カードに分割。管理画面側（V2.21.0）と同じ見た目に統一した
+// V2.23.0:
+//  [X-1] rerandomizeSideType('サラダ')の月・火・水ロジックが、weekEpochと曜日だけで決まる固定ローテーション値をまず採用し、その値が週内で未使用なら「そのまま」選んでいたため、🎲サラダを押しても同じサラダに戻ってしまい実質何も変わらない不具合があった。手動再抽選時は固定ローテーションを使わず、現在表示中のサラダを除外したプールから必ず選び直すよう修正
+// V2.22.0:
+//  [W-1] rerandomizeMainDishesForDay()を新設。主菜だけを単独で再抽選できるようにし（副菜・サラダには影響しない）、「料理1」の上に「🍳 メイン料理」の見出し＋🎲再抽選ボタンを追加。副菜・サラダと同じ「見出し＋再抽選ボタン」のレイアウトに統一した
+//  [W-2] 副菜・サラダの各枠にあった個別の🔄再抽選ボタンを削除し、「このX を削除」ボタンのみの全幅表示に変更（個別再抽選は不要になったrerollSideItem()も削除）
+// V2.21.0:
+//  [V-1] renderSideEditBlock()を新設。副菜・サラダの各枠をメイン料理の編集ブロックと同じ「見出し＋プリセットボタン→全幅入力欄→操作ボタン行」のレイアウトに変更し、入力欄が狭くて文字が見えない問題を解消
+//  [V-2] 「サブ・サラダ」の単一カードを「🍱 副菜」「🥗 サラダ」の2つのカードに分割。各カード内で「副菜1」「副菜2」「サラダ1」のように料理と同じ連番表示にした
+// V2.20.0:
+//  [U-1] 副菜・サラダの追加方式をメイン料理（＋料理を追加→編集ブロック）と統一。「＋副菜を追加」「＋サラダを追加」ボタンで空の枠を作成し、枠内のメニュー名を直接テキスト入力できるようにした（材料入力欄はメイン料理と異なり無し）
+//  [U-2] 各枠に「📚 プリセット」ボタンを追加。タップするとその枠専用にプリセット一覧（検索・カテゴリ絞り込み）を開き、選択した商品名をその枠に反映する
+//  [U-3] V2.19.0で追加した手入力専用欄（addSideManual）は枠内の直接入力に統合されたため削除
+// V2.19.0:
+//  [T-1] addSideManual()を新設。副菜・サラダ選択オーバーレイの検索欄下に手入力欄＋「追加」ボタンを設置し、AEON_SIDES/AEON_SALADSのプリセットに無いメニュー名も直接登録できるようにした
 // V2.18.0:
 //  [S-1] rerandomizeSidesForDay()を廃止し、type別に再抽選できるrerandomizeSideType('副菜'|'サラダ')を新設。副菜カードのヘッダーに「🎲副菜」「🎲サラダ」の2つのボタンを設置し、それぞれ単独で再抽選できるようにした（もう片方の項目には影響しない）
 // V2.17.0:
@@ -1285,20 +1305,27 @@ function renderMenuTab(weekData){
   if(sides.length>0){
     const wk=state.weekKey;
     const shopChecks=getShopChecks(wk);
-    const sideRows=sides.map(s=>{
+    const renderSideRow=(s)=>{
       const typeLabel=s.type==='副菜'?'副菜':s.type==='サラダ'?'サラダ':s.type;
       const st=shopChecks[s.name]||null;
-      return `<div class="side-row">
-        <span class="side-type-badge">${esc(typeLabel)}</span>
-        <span class="side-name">${esc(s.name)}</span>
-        ${shopIngBadge(st)}
-        <div class="rating-btns" style="display:flex;gap:4px;margin-left:auto">
-          <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','good')">👍${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||''}</button>
-          <button class="rating-btn bad${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','bad')">👎${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad||''}</button>
+      // ★V2.25.0修正：good/badボタンをメイン料理と同様に行の下に表示する
+      return `<div style="border-bottom:1px solid var(--border)">
+        <div class="side-row" style="border-bottom:none">
+          <span class="side-type-badge">${esc(typeLabel)}</span>
+          <span class="side-name">${esc(s.name)}</span>
+          ${shopIngBadge(st)}
+        </div>
+        <div class="dish-rating" style="border-top:none;padding-top:0">
+          <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','good')">👍 ${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||0}</button>
+          <button class="rating-btn bad${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','bad')">👎 ${(getRatings()[ratingKey(wk,d,s.name)]||{bad:0}).bad||0}</button>
         </div>
       </div>`;
-    }).join('');
-    html+=`<div class="sides-card"><div class="sides-header">🍱 副菜（レトルト）・袋サラダ</div>${sideRows}</div>`;
+    };
+    // ★V2.24.0修正：副菜とサラダを別カードに分割して表示する
+    const sideItems=sides.filter(s=>s.type!=='サラダ');
+    const saladItems=sides.filter(s=>s.type==='サラダ');
+    if(sideItems.length>0) html+=`<div class="sides-card"><div class="sides-header">🍱 副菜（レトルト）</div>${sideItems.map(renderSideRow).join('')}</div>`;
+    if(saladItems.length>0) html+=`<div class="sides-card"><div class="sides-header">🥗 サラダ（袋）</div>${saladItems.map(renderSideRow).join('')}</div>`;
   }
   html+=editLinkHtml;
   return html;
@@ -1407,14 +1434,14 @@ function shopNextState(cur){
   return null;
 }
 function shopBadge(state){
-  if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0">手配済み</span>`;
-  if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0">在庫あり</span>`;
-  return `<span style="background:var(--gray-l);color:var(--gray);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0;border:1px solid var(--border)">未確認</span>`;
+  if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0">手配済み</span>`;
+  if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0">在庫あり</span>`;
+  return `<span style="background:var(--gray-l);color:var(--gray);font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;border:1px solid var(--border)">未確認</span>`;
 }
 function shopIngBadge(state){
-  if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px">手配済み</span>`;
-  if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px">在庫あり</span>`;
-  return `<span style="background:var(--gray-l);color:var(--gray);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;border:1px solid var(--border)">未確認</span>`;
+  if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px">手配済み</span>`;
+  if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px">在庫あり</span>`;
+  return `<span style="background:var(--gray-l);color:var(--gray);font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px;border:1px solid var(--border)">未確認</span>`;
 }
 function toggleShop(weekKey,itemId){
   const checks=getShopChecks(weekKey);
@@ -1698,33 +1725,39 @@ function renderAdminDayContent(){
     </div>`;
 
   if(isCook){
+    // ★V2.22.0新設：副菜・サラダと同じ見た目にするため、メイン料理にも見出し＋再抽選ボタンを付ける
+    html+=`<div class="sides-card" style="margin-top:12px">
+      <div class="sides-header">🍳 メイン料理
+        <button class="sides-toggle-btn" onclick="rerandomizeMainDishesForDay()">🎲 再抽選</button>
+      </div>
+      <div style="padding:12px 16px 4px">`;
     const dishes=dayData.dishes||[];
     dishes.forEach((dish,di)=>{
       html+=renderDishEditBlock(dish,di);
     });
-    html+=`<button class="btn-secondary" onclick="addAwDish()" style="margin-top:8px">＋ 料理を追加</button>`;
+    html+=`<button class="btn-secondary" onclick="addAwDish()" style="margin-top:8px">＋ 料理を追加</button>
+      </div>
+    </div>`;
 
-    // sides section
+    // sides section（★V2.21.0修正：副菜とサラダを別カードに分割し、料理1・2のように連番表示）
     const sides=dayData.sides||[];
+    const sideEntries=[],saladEntries=[];
+    sides.forEach((s,si)=>{(s.type==='サラダ'?saladEntries:sideEntries).push([s,si]);});
     html+=`<div class="sides-card" style="margin-top:12px">
-      <div class="sides-header">🍱 サブ・サラダ
-        <div style="display:flex;gap:6px">
-          <button class="sides-toggle-btn" onclick="rerandomizeSideType('副菜')">🎲副菜</button>
-          <button class="sides-toggle-btn" onclick="rerandomizeSideType('サラダ')">🎲サラダ</button>
-          <button class="sides-toggle-btn" onclick="openSideOverlay('副菜')">＋副菜</button>
-          <button class="sides-toggle-btn" onclick="openSideOverlay('サラダ')">＋サラダ</button>
-        </div>
+      <div class="sides-header">🍱 副菜
+        <button class="sides-toggle-btn" onclick="rerandomizeSideType('副菜')">🎲 再抽選</button>
       </div>`;
-    sides.forEach((s,si)=>{
-      html+=`<div class="side-row">
-        <span class="side-type-badge">${esc(s.type)}</span>
-        <span class="side-name">${esc(s.name)}</span>
-        <button class="sides-toggle-btn" style="padding:4px 8px;font-size:12px" onclick="rerollSideItem(${si})">🔄</button>
-        <button class="btn-danger" style="padding:4px 10px;font-size:12px" onclick="removeSide(${si})">✕</button>
+    sideEntries.forEach(([s,si],i)=>{html+=renderSideEditBlock(s,si,i+1);});
+    if(sideEntries.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">副菜未登録</div>`;
+    html+=`<div style="padding:10px 16px"><button class="btn-secondary" style="width:100%" onclick="addSideBlank('副菜')">＋ 副菜を追加</button></div></div>`;
+
+    html+=`<div class="sides-card" style="margin-top:12px">
+      <div class="sides-header">🥗 サラダ
+        <button class="sides-toggle-btn" onclick="rerandomizeSideType('サラダ')">🎲 再抽選</button>
       </div>`;
-    });
-    if(sides.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">副菜（レトルト）・袋サラダ未登録</div>`;
-    html+=`</div>`;
+    saladEntries.forEach(([s,si],i)=>{html+=renderSideEditBlock(s,si,i+1);});
+    if(saladEntries.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">サラダ未登録</div>`;
+    html+=`<div style="padding:10px 16px"><button class="btn-secondary" style="width:100%" onclick="addSideBlank('サラダ')">＋ サラダを追加</button></div></div>`;
   }
   html+='</div>';
   document.getElementById('aw-day-content').innerHTML=html;
@@ -1776,6 +1809,17 @@ function renderDishEditBlock(dish,di){
 function addIngredient(di){
   awDayState.days[awDayState.day].dishes[di].ingredients.push({n:'',a:''});
   renderAdminDayContent();
+}
+// ★V2.21.0新設：副菜・サラダをメイン料理の編集ブロックと同じ見た目（見出し＋プリセットボタン＋全幅入力欄）で表示する
+function renderSideEditBlock(s,si,num){
+  return `<div class="dish-edit-block" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h4 style="margin:0">${esc(s.type)} ${num}</h4>
+      <button class="btn-preset-open" style="width:auto;padding:6px 12px;font-size:13px;margin:0" onclick="openSideOverlay('${esc(s.type)}',${si})">📚 プリセット</button>
+    </div>
+    <div class="form-group"><input class="form-input" style="width:100%" placeholder="${esc(s.type)}名" value="${esc(s.name)}" oninput="awDayState.days[awDayState.day].sides[${si}].name=this.value;awDayState.days[awDayState.day].sides[${si}].search=this.value"></div>
+    <button class="btn-danger" style="width:100%;margin-top:8px" onclick="removeSide(${si})">この${esc(s.type)}を削除</button>
+  </div>`;
 }
 function removeAwDish(di){
   awDayState.days[awDayState.day].dishes.splice(di,1);
@@ -2031,8 +2075,17 @@ function addPresetDish(dishIdx,menuName){
   renderAdminDayContent();
 }
 
-function openSideOverlay(type){
+// ★V2.20.0新設：メイン料理と同じ「＋追加」→編集ブロック方式にするため、空の副菜/サラダ枠をその場で作成する
+function addSideBlank(type){
+  const d=awDayState.day;
+  if(!awDayState.days[d].sides)awDayState.days[d].sides=[];
+  awDayState.days[d].sides.push({type,name:'',search:''});
+  renderAdminDayContent();
+}
+let awSidePickerTargetIdx=null;
+function openSideOverlay(type,targetIdx){
   awSidePickerType=type;
+  awSidePickerTargetIdx=targetIdx!=null?targetIdx:null;
   awSidePickerCat='すべて';
   awSideFilter='';
   let ov=document.getElementById('side-overlay');
@@ -2098,13 +2151,20 @@ function addSideFromOverlay(idx){
 function closeSideOverlay(){
   const ov=document.getElementById('side-overlay');
   if(ov)ov.remove();
+  awSidePickerTargetIdx=null;
 }
+// ★V2.20.0修正：プリセット選択は既存の枠（awSidePickerTargetIdx）に反映する。枠が無い場合のみ末尾に追加
 function addSide(type,idx){
   const list=type==='サラダ'?AEON_SALADS:AEON_SIDES;
   const s=list[idx];if(!s)return;
   const d=awDayState.day;
   if(!awDayState.days[d].sides)awDayState.days[d].sides=[];
-  awDayState.days[d].sides.push({type,name:s.name,search:s.search});
+  const sides=awDayState.days[d].sides;
+  if(awSidePickerTargetIdx!=null&&sides[awSidePickerTargetIdx]){
+    sides[awSidePickerTargetIdx]={type,name:s.name,search:s.search};
+  }else{
+    sides.push({type,name:s.name,search:s.search});
+  }
   renderAdminDayContent();
 }
 function removeSide(idx){
@@ -2354,6 +2414,81 @@ function randomizeOneDay(){
   if(!['月','火','水','金'].includes(d)){showRatingToast('この曜日はランダム選択非対応です');return;}
   randomizeDays([d]);
 }
+// ★V2.22.0新設：副菜・サラダのように、主菜（メイン料理）だけを単独で再抽選する（副菜・サラダには影響しない）
+function rerandomizeMainDishesForDay(d){
+  d=d||awDayState.day;
+  if(!['月','火','水','金'].includes(d)){showRatingToast('この曜日はランダム選択非対応です');return;}
+  if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
+  const weekStart=document.getElementById('aw-start-date').value;
+  const weekEpoch=weekStart?Math.floor(new Date(weekStart+'T00:00:00').getTime()/(7*24*3600*1000)):0;
+  const dayTargets={'月':['父・兄（2人分）','母（1人分）'],'火':['3人分'],'水':['3人分'],'金':['3人分']};
+  const allCookDays=['月','火','水','金'];
+  const weekUsedIngs=new Set();
+  const weekUsedProteins=new Set();
+  const weekUsedFlavors=new Set();
+  getPrevWeekFlavors(weekStart).forEach(f=>weekUsedFlavors.add(f));
+  allCookDays.forEach(dd=>{
+    if(dd===d)return;
+    const dayData=awDayState.days[dd];
+    if(!dayData||!dayData.cooking)return;
+    (dayData.dishes||[]).forEach(dish=>{
+      getMainIngs(dish).forEach(i=>weekUsedIngs.add(i));
+      (dish.labels||[]).filter(l=>PROTEIN_LABELS.includes(l)).forEach(p=>weekUsedProteins.add(p));
+      const fam=getFlavorFamily(dish.menu);
+      if(fam)weekUsedFlavors.add(fam);
+    });
+  });
+  const prevFridayProteins=new Set();
+  if(weekStart){
+    const prevMon=new Date(weekStart+'T00:00:00');prevMon.setDate(prevMon.getDate()-7);
+    const prevWeekKey=`${prevMon.getFullYear()}-${String(prevMon.getMonth()+1).padStart(2,'0')}-${String(prevMon.getDate()).padStart(2,'0')}`;
+    const prevWeekData=DB.weeks[prevWeekKey];
+    if(prevWeekData&&prevWeekData.menus&&prevWeekData.menus['金']){
+      (prevWeekData.menus['金'].dishes||[]).forEach(dish=>{
+        (dish.labels||[]).filter(l=>PROTEIN_LABELS.includes(l)).forEach(p=>prevFridayProteins.add(p));
+      });
+    }
+  }
+  let prevDayMethod='';
+  const idx=allCookDays.indexOf(d);
+  if(idx>0){
+    const prevDish=(awDayState.days[allCookDays[idx-1]]?.dishes||[])[0];
+    if(prevDish)prevDayMethod=getCookMethod(prevDish.menu);
+  }
+  const newDishes=[];
+  const dayRules=getDayLabelRules(d,weekEpoch)||[{}];
+  dayRules.forEach((rule,itemIdx)=>{
+    const reqLabels=rule.requireLabels||[];
+    const excLabels=rule.excludeLabels||[];
+    const ingKeyword=rule.ingKeyword||null;
+    const skipProteinCheck=reqLabels.some(l=>PROTEIN_LABELS.includes(l));
+    let r=null;
+    const excludeMenus=new Set();
+    for(let attempt=0;attempt<6;attempt++){
+      const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword,excludeMenus});
+      if(!candidate)break;
+      const relevantUsedProteins=d==='月'?new Set([...weekUsedProteins,...prevFridayProteins]):weekUsedProteins;
+      const isDup=isDuplicateCandidate(candidate,{weekUsedIngs,usedProteins:relevantUsedProteins,skipProteinCheck,usedFlavors:weekUsedFlavors});
+      const method=getCookMethod(candidate.menu);
+      const hasMethodConflict=itemIdx===0&&method!=='その他'&&method===prevDayMethod;
+      if(!isDup&&!hasMethodConflict){r=candidate;break;}
+      excludeMenus.add(candidate.menu);
+      if(attempt===5)r=candidate;
+    }
+    if(r){
+      getMainIngs(r).forEach(i=>weekUsedIngs.add(i));
+      (r.labels||[]).filter(l=>PROTEIN_LABELS.includes(l)).forEach(p=>weekUsedProteins.add(p));
+      const rFam=getFlavorFamily(r.menu);
+      if(rFam)weekUsedFlavors.add(rFam);
+      if(itemIdx===0)prevDayMethod=getCookMethod(r.menu);
+      const dish=JSON.parse(JSON.stringify(r));
+      dish.target=(dayTargets[d]&&dayTargets[d][itemIdx])||'3人分';
+      newDishes.push(dish);
+    }
+  });
+  if(newDishes.length)awDayState.days[d].dishes=newDishes;
+  renderAdminDayContent();
+}
 function randomizeDays(cookDays){
   const allCookDays=['月','火','水','金'];
   const isFullWeek=cookDays.length===allCookDays.length;
@@ -2574,15 +2709,10 @@ function rerandomizeSideType(type,d){
       const s=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
       if(s)picked={type:'サラダ',name:s.name,search:s.search||s.name};
     }else{
-      const saladDayOffset={'月':0,'火':1,'水':2};
-      let s;
-      if(saladDayOffset[d]!==undefined){
-        const idx=(weekEpoch*3+saladDayOffset[d])%AEON_SALADS.length;
-        const primary=AEON_SALADS[idx];
-        s=weekUsedSideNames.has(primary.name)?pickFreshSide(AEON_SALADS.filter(x=>x.name!==primary.name)):primary;
-      }else{
-        s=pickFreshSide(AEON_SALADS);
-      }
+      // ★V2.23.0修正：手動再抽選では曜日固定のローテーション値を使わず、現在の表示中サラダとは別の候補を必ず選ぶ
+      const currentSalad=(awDayState.days[d].sides||[]).find(x=>x.type==='サラダ');
+      const pool=currentSalad?AEON_SALADS.filter(x=>x.name!==currentSalad.name):AEON_SALADS;
+      const s=pickFreshSide(pool.length?pool:AEON_SALADS);
       if(s)picked={type:'サラダ',name:s.name,search:s.search||s.name};
     }
   }
@@ -2591,22 +2721,6 @@ function rerandomizeSideType(type,d){
   const idx=sides.findIndex(x=>x.type===type);
   if(idx>=0)sides[idx]=picked;else sides.push(picked);
   awDayState.days[d].sides=sides;
-  renderAdminDayContent();
-}
-// ★V2.12.0新設：副菜・サラダを1件だけ個別に選び直す（ネットスーパーで欠品していた場合の差し替え用）
-function rerollSideItem(idx){
-  const d=awDayState.day;
-  const sides=awDayState.days[d]?.sides||[];
-  const cur=sides[idx];
-  if(!cur)return;
-  const isSalad=cur.type==='サラダ';
-  const basePool=isSalad?AEON_SALADS:RETORT_SIDES;
-  const otherNames=new Set(sides.filter((s,i)=>i!==idx).map(s=>s.name));
-  const candidates=basePool.filter(s=>s.name!==cur.name&&!otherNames.has(s.name));
-  const finalPool=candidates.length?candidates:basePool.filter(s=>s.name!==cur.name);
-  if(!finalPool.length){showRatingToast('他に候補がありません');return;}
-  const picked=finalPool[Math.floor(Math.random()*finalPool.length)];
-  sides[idx]={type:cur.type,name:picked.name,search:picked.search||picked.name};
   renderAdminDayContent();
 }
 
