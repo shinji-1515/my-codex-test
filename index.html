@@ -19,7 +19,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 .screen{display:none;flex-direction:column;min-height:100vh}
 .screen.active{display:flex}
 .header{background:var(--navy);color:#fff;padding:16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
-.header h1{font-size:18px;font-weight:700;flex:1}
+.header h1{font-size:18px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .header .back-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:10px 14px;min-width:44px;min-height:44px;}
 .content{flex:1;padding:16px;padding-bottom:calc(var(--nav)+16px)}
 .content.no-pad-bottom{padding-bottom:16px}
@@ -161,7 +161,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 
 /* RATING */
 .dish-rating{display:flex;gap:16px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)}
-.rating-btn{background:var(--gray-l);border:1.5px solid var(--border);border-radius:20px;padding:8px 20px;font-size:16px;cursor:pointer;font-weight:700;transition:.15s;min-height:44px}
+.rating-btn{background:var(--gray-l);border:1.5px solid var(--border);border-radius:20px;padding:4px 12px;font-size:16px;cursor:pointer;font-weight:700;transition:.15s;min-height:36px}
 .rating-btn.good:hover,.rating-btn.good:active{background:var(--green-l);border-color:var(--green)}
 .rating-btn.bad:hover,.rating-btn.bad:active{background:#FDECEA;border-color:var(--red)}
 .rating-toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;pointer-events:none;opacity:0;transition:opacity .3s;max-width:90vw;text-align:center;line-height:1.5;word-break:break-all}
@@ -371,7 +371,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
   <div class="content no-pad-bottom">
     <div class="admin-card">
       <div class="form-group"><label class="form-label">週開始日（月曜日）</label><input class="form-input" type="date" id="aw-start-date" oninput="renderAdminDayTabs();renderAdminDayContent()"></div>
-      <button class="btn-secondary" onclick="randomizeWeek()" style="margin-top:4px">🎲 月火水金を一括ランダム選択</button>
+      <button class="btn-secondary" onclick="confirmRandomizeWeek()" style="margin-top:4px">🎲 月火水金を一括ランダム選択</button>
       <button class="btn-secondary" onclick="randomizeOneDay()" style="margin-top:4px">🎲 表示中の曜日のみランダム選択</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -401,8 +401,45 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.27.0（2026-07-05 「未確認」表示を「在庫不明」に変更）
+// 夕食献立管理アプリ V2.42.0（2026-07-05 一括ランダム選択ボタンに実行確認を追加）
 // 変更履歴（Changelog）
+// V2.42.0:
+//  [AQ-1] confirmRandomizeWeek()を新設。「🎲 月火水金を一括ランダム選択」ボタンをappConfirm()による確認ダイアログ経由に変更し、誤タップで既存の献立が上書きされるのを防止した
+// V2.41.0:
+//  [AP-1] go()呼び出しごとにhistory.pushState()で画面状態を履歴に積み、popstateイベントで戻るボタン操作を検知してアプリ内の1つ前の画面に戻れるようにした（以前はブラウザバックでアプリごと閉じる/白画面になっていた）
+// V2.40.0:
+//  [AO-1] 全献立リストのラベルフィルタ（LABEL_GROUPS各行）に、プリセット選択画面（V2.5.0）と同じ「×」除外ボタンを追加。allMenusExcludeLabelsを新設し、toggleAllMenuExcludeLabel()でラベルを除外指定できるようにした
+//  [AO-2] 除外指定したラベルは赤色の🚫パンくずで表示し、タップで解除可能。「← リセット」で含む/除外の両方をまとめて解除
+// V2.39.0:
+//  [AN-1] goAddFutureMenu()を新設。来週以降の献立ページ上部に「＋ 献立を追加する」ボタンを追加し、そのまま新しい週の追加画面（goAdminNewWeek）に進めるようにした。パスワード保護中は既存のgoEditWeekと同様にログイン画面を経由する
+// V2.38.0:
+//  [AM-1] .rating-btnのpadding(8px 20px→4px 12px)・min-height(44px→36px)を縮小。文字サイズ(16px)は変更していない
+// V2.37.0:
+//  [AL-1] 「餃子レトルト」に「ひき肉」ラベルを追加
+//  [AL-2] 全PRESET_DISHESを食材キーワードで点検し、他のラベル漏れも修正：「Cook Do 八宝菜用」「Cook Do 八宝菜用（追加）」に「卵」（うずら卵入り）、「Cook Do 青椒肉絲用」に「豚」（牛肉または豚肉と明記）、「クラムチャウダー」に「海老」（むきエビ使用）を追加
+//  [AL-3] APP_VERSION定数を新設し、❓ヘルプのモーダル下部にバージョン番号を表示するようにした
+// V2.36.0:
+//  [AK-1] 全献立リストの食材フィルタ（3行目）を「豚・鶏・牛・ひき肉」「魚・海老・卵・豆腐」の固定順2行に分割。LABEL_GROUPSにnoSortフラグを追加し、この2行は使用件数によるソートを行わず指定順で表示するようにした
+// V2.35.0:
+//  [AJ-1] renderDishCard()の材料一覧で、在庫不明等バッジを材料名の右隣（左寄り）から分量と並べて行の右端へ右寄せ表示に変更
+// V2.34.0:
+//  [AI-1] トップ画面の「⚠️ 調理後はコンロの元栓をしめてください」の注記を削除（献立詳細ページ側の同注記は維持）
+// V2.33.0:
+//  [AH-1] 文字サイズを「大・特大」にするとページ全体がzoomで拡大される仕様上、ヘッダーのタイトル文字が折り返して3行になり青い領域が異常に大きくなる不具合を修正。.header h1にwhite-space:nowrap/overflow:hidden/text-overflow:ellipsisを指定し、常に1行で収まるようにした
+// V2.32.0:
+//  [AG-1] ❓ヘルプの内容を指定フォーマット（【画面の見かた】【材料の確認】【料理の評価】）に合わせて簡潔化し、「評価ができるのは父のみです」に修正
+//  [AG-2] maybeShowFirstLaunchNotice()を新設。ヘルプとは別に、端末で最初にアプリを開いた時だけ「今後は本アプリで希望メニューを伝達します」等の案内（署名：青木）を自動表示する（menuApp_firstNoticeShownで一度きり制御）
+// V2.31.0:
+//  [AF-1] V2.29.0の「起動時案内メッセージ」ON/OFFトグルと自動起動表示を廃止。代わりにトップ画面下部に「❓ ヘルプ」ボタンを新設し、いつでも案内メッセージを呼び出せるようにした
+//  [AF-2] 案内メッセージの内容を刷新。トップ画面の各項目（今週の献立/来週以降の献立/過去の献立/全献立リスト/前提情報・ルール/文字サイズ）ごとに簡単な説明を追加し、「評価（👍👎）ができるのは父と母のみ」である旨を明記した
+// V2.30.0:
+//  [AE-1] トップ画面の最上部に「🔖 本ページをブックマークしてください。」の案内文を追加
+// V2.29.0:
+//  [AD-1] トップ画面下部に「💬 起動時案内メッセージ」ON/OFFスイッチを追加。isWelcomeEnabled()/setWelcomeEnabled()を新設し、localStorage(menuApp_welcomeEnabled)で設定を保持する（デフォルトON）
+//  [AD-2] maybeShowWelcome()を、端末に永久記録して二度と出さない方式（menuApp_welcomed）から、アプリを開いたセッション中に1回だけ表示する方式に変更。トグルOFF時は一切表示しない
+// V2.28.0:
+//  [AC-1] 今週の献立表示の副菜・サラダ行で、在庫不明等のバッジを名前の右隣（左寄り）から行の右端へ右寄せ表示に変更
+//  [AC-2] 「🍱 副菜（レトルト）」「🥗 サラダ（袋）」の見出しの右に、メイン料理と同じ.dish-targetタグで「3人分」を表記するようにした
 // V2.27.0:
 //  [AB-1] shopBadge()/shopIngBadge()および設定画面の説明文にある「未確認」の表記を「在庫不明」に変更
 // V2.26.0:
@@ -483,10 +520,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
+const APP_VERSION='V2.42.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
-{menu:'餃子レトルト',labels:['肉メイン','豚','中華','焼き物','レトルト完成品'],ingredients:[{n:'冷凍餃子（レトルト）',a1:'6個',a2:'12個',a3:'18個'}]},
+{menu:'餃子レトルト',labels:['肉メイン','豚','ひき肉','中華','焼き物','レトルト完成品'],ingredients:[{n:'冷凍餃子（レトルト）',a1:'6個',a2:'12個',a3:'18個'}]},
 {menu:'豚の生姜焼き',labels:['肉メイン','豚','和食','炒め物','焼き物'],ingredients:[{n:'豚薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'},{n:'めんつゆ',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'豚バラと大根の煮物',labels:['肉野菜','豚','和食','煮物'],ingredients:[{n:'豚薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'大根',a1:'1/6本',a2:'1/3本',a3:'1/2本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'顆粒だし',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'},{n:'めんつゆ',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'豚肉と白菜の重ね煮',labels:['肉野菜','豚','和食','煮物','残り野菜活用'],ingredients:[{n:'豚薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'めんつゆ',a1:'適量',a2:'適量',a3:'適量'}]},
@@ -645,8 +683,8 @@ const PRESET_DISHES=[
 {menu:'エビと玉ねぎの塩炒め',labels:['肉無し','海老','和食','炒め物','残り野菜活用'],ingredients:[{n:'むきエビ（冷凍）',a1:'50g',a2:'100g',a3:'150g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'}]},
 {menu:'Cook Do 麻婆豆腐用',labels:['肉メイン','ひき肉','豚','豆腐','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 麻婆豆腐用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'絹ごし豆腐',a1:'1/3丁（100g）',a2:'2/3丁（200g）',a3:'1丁（300g）'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'豚ひき肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'Cook Do 回鍋肉用',labels:['肉野菜','豚','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do 回鍋肉用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'キャベツ',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'豚バラ肉（または豚こま肉）',a1:'90g程度',a2:'180g程度',a3:'270g程度'}]},
-{menu:'Cook Do 八宝菜用',labels:['肉無し','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 八宝菜用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'うずら卵（水煮缶）',a1:'1缶',a2:'1缶',a3:'1〜2缶'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'Cook Do 青椒肉絲用',labels:['肉野菜','牛','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do 青椒肉絲用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ（水煮）',a1:'33g',a2:'67g',a3:'100g'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'牛肉（または豚肉）細切り',a1:'90g程度',a2:'180g程度',a3:'270g程度'}]},
+{menu:'Cook Do 八宝菜用',labels:['肉無し','卵','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 八宝菜用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'うずら卵（水煮缶）',a1:'1缶',a2:'1缶',a3:'1〜2缶'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'Cook Do 青椒肉絲用',labels:['肉野菜','牛','豚','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do 青椒肉絲用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ（水煮）',a1:'33g',a2:'67g',a3:'100g'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'牛肉（または豚肉）細切り',a1:'90g程度',a2:'180g程度',a3:'270g程度'}]},
 {menu:'Cook Do エビチリ用',labels:['肉無し','海老','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do エビチリ用',a1:'50g',a2:'100g',a3:'150g'},{n:'むきエビ（冷凍）',a1:'50g',a2:'100g',a3:'150g'},{n:'長ねぎ',a1:'1/2本',a2:'1本',a3:'1本半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'Cook Do 麻婆茄子用',labels:['肉メイン','ひき肉','豚','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 麻婆茄子用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'なす',a1:'1本',a2:'2本',a3:'3本'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'豚ひき肉',a1:'90g',a2:'180g',a3:'270g'}]},
 {menu:'Cook Do 酢豚用',labels:['肉無し','豆腐','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 酢豚用',a1:'1/3袋',a2:'2/3袋',a3:'1袋'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'パプリカ',a1:'1/4個',a2:'1/2個',a3:'3/4個'},{n:'厚揚げ',a1:'1/3枚（150g）',a2:'2/3枚（300g）',a3:'1枚（450g）'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
@@ -678,7 +716,7 @@ const PRESET_DISHES=[
 {menu:'S&B シーズニング ガパオ風',labels:['肉無し','卵','豆腐','洋食','炒め物','レトルト調味料'],ingredients:[{n:'S&B シーズニング ガパオ風',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'パプリカ',a1:'1/4個',a2:'1/2個',a3:'3/4個'},{n:'卵',a1:'1個',a2:'2個',a3:'3個'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'厚揚げ',a1:'1/3枚（150g）',a2:'2/3枚（300g）',a3:'1枚（450g）'}]},
 {menu:'Cook Do オイスターソース青菜炒め用',labels:['肉無し','中華','炒め物','レトルト調味料','残り野菜活用'],ingredients:[{n:'Cook Do オイスターソース青菜炒め用',a1:'1/3袋',a2:'2/3袋',a3:'1袋'},{n:'チンゲン菜',a1:'1/3株',a2:'2/3株',a3:'1株'},{n:'小松菜',a1:'1/4束',a2:'1/2束',a3:'3/4束'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'丸美屋 麻婆豆腐の素（甘口）',labels:['肉無し','豆腐','中華','煮物','レトルト調味料','残り野菜活用'],ingredients:[{n:'丸美屋 麻婆豆腐の素（甘口）',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'絹ごし豆腐',a1:'1/3丁（100g）',a2:'2/3丁（200g）',a3:'1丁（300g）'},{n:'長ねぎ',a1:'1/2本',a2:'1本',a3:'1本半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'Cook Do 八宝菜用（追加）',labels:['肉無し','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 八宝菜用（追加）',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'うずら卵（水煮缶）',a1:'1缶',a2:'1缶',a3:'1〜2缶'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'Cook Do 八宝菜用（追加）',labels:['肉無し','卵','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 八宝菜用（追加）',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'うずら卵（水煮缶）',a1:'1缶',a2:'1缶',a3:'1〜2缶'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'丸美屋 中華名菜 酢豚',labels:['肉無し','豆腐','中華','煮物','レトルト調味料'],ingredients:[{n:'丸美屋 中華名菜 酢豚',a1:'適量',a2:'適量',a3:'適量'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'パプリカ',a1:'1/4個',a2:'1/2個',a3:'3/4個'},{n:'厚揚げ',a1:'1/3枚（150g）',a2:'2/3枚（300g）',a3:'1枚（450g）'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'Cook Do 担々麺用ソース（汁なし和え）',labels:['肉無し','中華','レトルト調味料','麺'],ingredients:[{n:'Cook Do 担々麺用ソース（汁なし和え）',a1:'1/3袋',a2:'2/3袋',a3:'1袋'},{n:'ゆで麺',a1:'2玉',a2:'4玉',a3:'6玉'},{n:'チンゲン菜',a1:'1/3株',a2:'2/3株',a3:'1株'},{n:'もやし',a1:'1/3袋（100g）',a2:'2/3袋（200g）',a3:'1袋（300g）'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'ヤマモリ 炊き込みご飯の素（鶏五目）',labels:['肉野菜','鶏','豆腐','和食','レトルト調味料','ご飯もの'],ingredients:[{n:'ヤマモリ 炊き込みご飯の素（鶏五目）',a1:'1/3袋',a2:'2/3袋',a3:'1袋'},{n:'米2合',a1:'2/3合',a2:'1合半',a3:'2合'},{n:'鶏もも肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ごぼう',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'こんにゃく',a1:'1/3枚（67g）',a2:'2/3枚（133g）',a3:'1枚（200g）'},{n:'油揚げ',a1:'1/3枚',a2:'2/3枚',a3:'1枚'}]},
@@ -855,7 +893,7 @@ const PRESET_DISHES=[
 {menu:'うな丼の具レトルト',labels:['肉無し','魚','和食','ご飯もの','レトルト完成品'],ingredients:[{n:'うな丼の具（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'},{n:'ごはん',a1:'茶碗2杯分',a2:'茶碗4杯分',a3:'茶碗6杯分'}]},
 {menu:'いくら丼の具レトルト',labels:['肉無し','魚','和食','ご飯もの','レトルト完成品'],ingredients:[{n:'いくら丼の具（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'},{n:'ごはん',a1:'茶碗2杯分',a2:'茶碗4杯分',a3:'茶碗6杯分'}]},
 {menu:'けんちん汁',labels:['肉無し','豆腐','和食','汁物','残り野菜活用'],ingredients:[{n:'絹ごし豆腐',a1:'1/3丁（100g）',a2:'2/3丁（200g）',a3:'1丁（300g）'},{n:'大根',a1:'1/6本',a2:'1/3本',a3:'1/2本'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'ごぼう',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'こんにゃく',a1:'1/3枚（67g）',a2:'2/3枚（133g）',a3:'1枚（200g）'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'},{n:'しょうゆ',a1:'適量',a2:'適量',a3:'適量'},{n:'顆粒だし',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'クラムチャウダー',labels:['肉無し','洋食','汁物','残り野菜活用'],ingredients:[{n:'むきエビ（冷凍）',a1:'50g',a2:'100g',a3:'150g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'じゃがいも',a1:'1個',a2:'2個',a3:'3個'},{n:'牛乳',a1:'100ml',a2:'200ml',a3:'300ml'},{n:'バター',a1:'適量',a2:'適量',a3:'適量'},{n:'薄力粉',a1:'大さじ2',a2:'大さじ4',a3:'大さじ6'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'},{n:'塩こしょう',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'クラムチャウダー',labels:['肉無し','海老','洋食','汁物','残り野菜活用'],ingredients:[{n:'むきエビ（冷凍）',a1:'50g',a2:'100g',a3:'150g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'じゃがいも',a1:'1個',a2:'2個',a3:'3個'},{n:'牛乳',a1:'100ml',a2:'200ml',a3:'300ml'},{n:'バター',a1:'適量',a2:'適量',a3:'適量'},{n:'薄力粉',a1:'大さじ2',a2:'大さじ4',a3:'大さじ6'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'},{n:'塩こしょう',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'豚の生姜焼きレトルト',labels:['肉メイン','豚','和食','焼き物','レトルト完成品'],ingredients:[{n:'豚の生姜焼き（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'}]},
 {menu:'鶏のから揚げレトルト',labels:['肉メイン','鶏','和食','焼き物','レトルト完成品'],ingredients:[{n:'鶏のから揚げ（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'}]}
 ];
@@ -966,6 +1004,8 @@ const DAYS=['月','火','水','木','金','土','日'];
 let state={page:'top',weekKey:null,weekTab:'menu',weekDay:'月'};
 
 // ===================== ROUTING =====================
+// ★V2.41.0新設：端末の戻るボタンでアプリ内の画面遷移を戻れるようにする
+let isPopStateNav=false;
 function go(page,opts={}){
   Object.assign(state,{page},opts);
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -973,7 +1013,20 @@ function go(page,opts={}){
   window.scrollTo(0,0);
   render();
   updateRoleButton();
+  if(!isPopStateNav){
+    history.pushState({appState:JSON.parse(JSON.stringify(state))},'','');
+  }
+  isPopStateNav=false;
 }
+window.addEventListener('popstate',(e)=>{
+  isPopStateNav=true;
+  if(e.state&&e.state.appState){
+    const s=e.state.appState;
+    go(s.page,s);
+  }else{
+    go('top');
+  }
+});
 
 function goAdmin(){
   if(adminUnlocked||getRole()==='admin'){adminUnlocked=true;go('admin');return;}
@@ -989,7 +1042,10 @@ function checkAdminPw(){
     adminUnlocked=true;
     setRole('admin');
     inp.value='';document.getElementById('admin-pw-error').style.display='none';
-    if(state.pendingEditWeekKey){
+    if(state.pendingEditWeekKey==='__NEW__'){
+      state.pendingEditWeekKey=null;state.pendingEditDay=null;
+      goAdminNewWeek();
+    }else if(state.pendingEditWeekKey){
       const wk=state.pendingEditWeekKey,dy=state.pendingEditDay;
       state.pendingEditWeekKey=null;state.pendingEditDay=null;
       state.editingWeekKey=wk;
@@ -1125,6 +1181,18 @@ function goAdminNewWeek(){
   state.editingWeekKey=null;
   go('admin-week');
 }
+// ★V2.39.0新設：来週以降の献立ページから直接「新しい週を追加」できるようにする（パスワード保護は既存のgoEditWeekと同様に維持）
+function goAddFutureMenu(){
+  const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
+  if(pwEnabled){
+    state.pendingEditWeekKey='__NEW__';
+    state.pendingEditDay=null;
+    go('admin-login');
+  }else{
+    adminUnlocked=true;setRole('admin');
+    goAdminNewWeek();
+  }
+}
 function goAdminEditWeek(k){
   state.editingWeekKey=k;
   go('admin-week');
@@ -1205,11 +1273,12 @@ function renderTop(){
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='medium'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('medium');renderTop()">中</button>
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='large'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('large');renderTop()">大</button>
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='xlarge'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('xlarge');renderTop()">特大</button>
-  </div>`;
+  </div>
+  <button class="btn-secondary" style="width:100%;margin-bottom:16px" onclick="maybeShowWelcome()">❓ ヘルプ</button>`;
 
-  const konroAlert=`<div style="background:#d32f2f;color:#fff;text-align:center;padding:10px 14px;font-size:15px;font-weight:700;border-radius:8px;margin:10px 0">⚠️ 調理後はコンロの元栓をしめてください</div>`;
-  document.getElementById('top-content').innerHTML=latestHtml+konroAlert+navGrid;
-  maybeShowWelcome();
+  const bookmarkNote=`<div style="text-align:center;padding:8px 14px;font-size:13px;color:var(--gray);font-weight:600">🔖 本ページをブックマークしてください。</div>`;
+  document.getElementById('top-content').innerHTML=bookmarkNote+latestHtml+navGrid;
+  maybeShowFirstLaunchNotice();
 }
 
 function renderWeek(){
@@ -1311,11 +1380,12 @@ function renderMenuTab(weekData){
       const typeLabel=s.type==='副菜'?'副菜':s.type==='サラダ'?'サラダ':s.type;
       const st=shopChecks[s.name]||null;
       // ★V2.25.0修正：good/badボタンをメイン料理と同様に行の下に表示する
+      // ★V2.28.0修正：在庫不明等のバッジを右寄せにする
       return `<div style="border-bottom:1px solid var(--border)">
         <div class="side-row" style="border-bottom:none">
           <span class="side-type-badge">${esc(typeLabel)}</span>
           <span class="side-name">${esc(s.name)}</span>
-          ${shopIngBadge(st)}
+          <span style="margin-left:auto">${shopIngBadge(st)}</span>
         </div>
         <div class="dish-rating" style="border-top:none;padding-top:0">
           <button class="rating-btn good${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good>0?' active':''}" onclick="toggleRating('${wk}','${d}','${jsArg(s.name)}','good')">👍 ${(getRatings()[ratingKey(wk,d,s.name)]||{good:0}).good||0}</button>
@@ -1324,10 +1394,11 @@ function renderMenuTab(weekData){
       </div>`;
     };
     // ★V2.24.0修正：副菜とサラダを別カードに分割して表示する
+    // ★V2.28.0修正：メイン料理と同じ「対象者」表記（3人分）をヘッダーに追加
     const sideItems=sides.filter(s=>s.type!=='サラダ');
     const saladItems=sides.filter(s=>s.type==='サラダ');
-    if(sideItems.length>0) html+=`<div class="sides-card"><div class="sides-header">🍱 副菜（レトルト）</div>${sideItems.map(renderSideRow).join('')}</div>`;
-    if(saladItems.length>0) html+=`<div class="sides-card"><div class="sides-header">🥗 サラダ（袋）</div>${saladItems.map(renderSideRow).join('')}</div>`;
+    if(sideItems.length>0) html+=`<div class="sides-card"><div class="sides-header">🍱 副菜（レトルト）<span class="dish-target">3人分</span></div>${sideItems.map(renderSideRow).join('')}</div>`;
+    if(saladItems.length>0) html+=`<div class="sides-card"><div class="sides-header">🥗 サラダ（袋）<span class="dish-target">3人分</span></div>${saladItems.map(renderSideRow).join('')}</div>`;
   }
   html+=editLinkHtml;
   return html;
@@ -1362,7 +1433,8 @@ function renderDishCard(dish,dishIdx,weekKey,day){
     const amtHtml=canEdit
       ?`<span class="ing-amt editable" onclick="editIngAmt('${esc(weekKey)}','${esc(day)}',${dishIdx},${ii})">${esc(amt)}${adjBadge}</span>`
       :`<span class="ing-amt">${esc(amt)}</span>`;
-    return `<div class="ing-row"><span class="ing-name">${esc(i.n)}${shopIngBadge(st)}</span>${amtHtml}</div>`;
+    // ★V2.35.0修正：在庫不明等バッジを名前の右隣（左寄り）から量と並べて右寄せにする
+    return `<div class="ing-row"><span class="ing-name">${esc(i.n)}</span><span style="display:flex;align-items:center;gap:6px">${shopIngBadge(st)}${amtHtml}</span></div>`;
   }).join('');
   const equips=(dish.equipment||[]).map(e=>`<span class="equip-tag">${esc(e)}</span>`).join('');
   const note=dish.note?`<div class="dish-section"><div class="note-box">💡 ${esc(dish.note)}</div></div>`:'';
@@ -2411,6 +2483,10 @@ function pickRandom(dishIdx){
   closePresetOverlay();
 }
 function randomizeWeek(){randomizeDays(['月','火','水','金']);}
+// ★V2.42.0新設：一括ランダム選択は誤タップ防止のため実行前に確認する
+function confirmRandomizeWeek(){
+  appConfirm('月火水金の献立を一括でランダム選択します。実行しますか？',randomizeWeek);
+}
 function randomizeOneDay(){
   const d=awDayState.day;
   if(!['月','火','水','金'].includes(d)){showRatingToast('この曜日はランダム選択非対応です');return;}
@@ -2751,8 +2827,8 @@ function renderFuture(){
   // ascending: closest future first
   const keys=Object.keys(DB.weeks).sort((a,b)=>a<b?-1:1);
   const futureKeys=keys.filter(k=>new Date(k+'T00:00:00')>today);
-  let html='';
-  if(futureKeys.length===0) html='<p style="padding:20px;color:var(--gray);text-align:center">来週以降の献立はありません</p>';
+  let html=`<button class="btn-primary" style="margin-bottom:16px" onclick="goAddFutureMenu()">＋ 献立を追加する</button>`;
+  if(futureKeys.length===0) html+='<p style="padding:20px;color:var(--gray);text-align:center">来週以降の献立はありません</p>';
   futureKeys.forEach(k=>{
     const cookDays=DAYS.filter(d=>DB.weeks[k]?.menus?.[d]?.cooking).join('・');
     html+=`<div class="archive-week-row" style="display:flex;align-items:center;gap:8px">
@@ -2770,11 +2846,27 @@ function renderFuture(){
 let allMenusCat='すべて';
 let allMenusGenre='すべて';
 let allMenusLabels=[];
+let allMenusExcludeLabels=[]; // ★V2.40.0新設：全献立リストのラベル除外フィルタ
 let allMenusSelected=null;
 function toggleAllMenuLabel(l){
   const idx=allMenusLabels.indexOf(l);
   if(idx>=0) allMenusLabels.splice(idx); // タップ済み→以降リセット
-  else allMenusLabels.push(l);
+  else{
+    const exIdx=allMenusExcludeLabels.indexOf(l);
+    if(exIdx>=0)allMenusExcludeLabels.splice(exIdx,1);
+    allMenusLabels.push(l);
+  }
+  renderAllMenus();
+}
+// ★V2.40.0新設：ラベルの×ボタンで「このラベルを含まない」絞り込みを切り替える
+function toggleAllMenuExcludeLabel(l){
+  const idx=allMenusExcludeLabels.indexOf(l);
+  if(idx>=0){allMenusExcludeLabels.splice(idx,1);}
+  else{
+    const inIdx=allMenusLabels.indexOf(l);
+    if(inIdx>=0)allMenusLabels.splice(inIdx);
+    allMenusExcludeLabels.push(l);
+  }
   renderAllMenus();
 }
 function getAllMenusAvailableLabels(){
@@ -2782,34 +2874,40 @@ function getAllMenusAvailableLabels(){
   const filtered=ALL_PRESETS.filter(p=>{
     const lbls=p.labels||[];
     const matchLabel=!allMenusLabels.length||allMenusLabels.every(l=>lbls.includes(l));
+    const matchExclude=!allMenusExcludeLabels.length||allMenusExcludeLabels.every(l=>!lbls.includes(l));
     const matchQ=!query||p.menu.includes(query)||(p.ingredients&&p.ingredients.some(i=>i.n&&i.n.includes(query)));
-    return matchLabel&&matchQ;
+    return matchLabel&&matchExclude&&matchQ;
   });
   const cnt={};
   filtered.forEach(p=>(p.labels||[]).forEach(l=>{ if(!allMenusLabels.includes(l)) cnt[l]=(cnt[l]||0)+1; }));
   return cnt;
 }
+// ★V2.36.0修正：食材フィルタを2行（豚・鶏・牛・ひき肉／魚・海老・卵・豆腐）に分割。noSort指定で並び順を固定する
 const LABEL_GROUPS=[
   {label:'主菜',labels:['肉メイン','肉野菜','肉無し']},
-  {label:'食材',labels:['豚','牛','鶏','魚','海老','卵','豆腐','ひき肉']},
+  {label:'食材1',labels:['豚','鶏','牛','ひき肉'],noSort:true},
+  {label:'食材2',labels:['魚','海老','卵','豆腐'],noSort:true},
   {label:'調理法',labels:['炒め物','煮物','焼き物','汁物','麺','ご飯もの']},
   {label:'ジャンル',labels:['和食','洋食','中華']},
   {label:'その他',labels:['レトルト調味料','レトルト完成品','残り野菜活用']},
 ];
 function buildAllMenusLabelHTML(){
-  // パンくず（選択済み）+ リセットボタン
-  const crumbs=allMenusLabels.length
+  // パンくず（選択済み・除外済み）+ リセットボタン
+  const includeCrumbs=allMenusLabels.map((l,i)=>`<button class="preset-cat-btn active" style="font-size:12px;padding:4px 10px" onclick="allMenusLabels.splice(${i});renderAllMenus()">${esc(l)} ×</button>`);
+  const excludeCrumbs=allMenusExcludeLabels.map((l,i)=>`<button class="preset-cat-btn" style="font-size:12px;padding:4px 10px;background:#fdd;border-color:var(--red);color:var(--red)" onclick="allMenusExcludeLabels.splice(${i},1);renderAllMenus()">🚫${esc(l)} ×</button>`);
+  const allCrumbs=[...includeCrumbs,...excludeCrumbs];
+  const crumbs=allCrumbs.length
     ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">`
-      +allMenusLabels.map((l,i)=>`<button class="preset-cat-btn active" style="font-size:12px;padding:4px 10px" onclick="allMenusLabels.splice(${i});renderAllMenus()">${esc(l)} ×</button>`).join('<span style="color:var(--gray);align-self:center">›</span>')
-      +`<button style="margin-left:auto;background:none;border:1px solid var(--gray);border-radius:12px;font-size:11px;padding:3px 8px;color:var(--gray);cursor:pointer" onclick="allMenusLabels=[];renderAllMenus()">← リセット</button>`
+      +allCrumbs.join('')
+      +`<button style="margin-left:auto;background:none;border:1px solid var(--gray);border-radius:12px;font-size:11px;padding:3px 8px;color:var(--gray);cursor:pointer" onclick="allMenusLabels=[];allMenusExcludeLabels=[];renderAllMenus()">← リセット</button>`
       +`</div>`
     : '';
   const available=getAllMenusAvailableLabels();
   const rows=LABEL_GROUPS.map(g=>{
     const btns=g.labels
       .filter(l=>available[l]!=null)
-      .sort((a,b)=>(available[b]||0)-(available[a]||0))
-      .map(l=>`<button class="preset-cat-btn" style="flex-shrink:0;font-size:12px;padding:4px 10px" onclick="allMenusCat='すべて';toggleAllMenuLabel('${esc(l)}')">${esc(l)}</button>`)
+      .sort((a,b)=>g.noSort?0:(available[b]||0)-(available[a]||0))
+      .map(l=>`<button class="preset-cat-btn" style="flex-shrink:0;font-size:12px;padding:4px 6px 4px 10px" onclick="allMenusCat='すべて';toggleAllMenuLabel('${esc(l)}')">${esc(l)}<span onclick="event.stopPropagation();toggleAllMenuExcludeLabel('${esc(l)}')" style="display:inline-block;margin-left:4px;padding:0 4px;color:var(--red);font-weight:800">×</span></button>`)
       .join('');
     if(!btns)return '';
     return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow-x:auto">${btns}</div>`;
@@ -2832,10 +2930,10 @@ function renderAllMenus(){
 
   // Label filter chips (main menu)
   const extraCats=['副菜','サラダ'];
-  const mainCatBtns=['すべて',...extraCats].map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${jsArg(c)}';allMenusLabels=[];renderAllMenus()">${esc(c)}</button>`).join('');
+  const mainCatBtns=['すべて',...extraCats].map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${jsArg(c)}';allMenusLabels=[];allMenusExcludeLabels=[];renderAllMenus()">${esc(c)}</button>`).join('');
   const catsEl=document.getElementById('all-menus-cats');
   const labelEl=document.getElementById('all-menus-labels');
-  const inLabelMode=!['副菜','サラダ'].includes(allMenusCat)&&allMenusLabels.length>0;
+  const inLabelMode=!['副菜','サラダ'].includes(allMenusCat)&&(allMenusLabels.length>0||allMenusExcludeLabels.length>0);
   if(catsEl){
     catsEl.innerHTML=mainCatBtns;
     catsEl.style.display=inLabelMode?'none':'flex';
@@ -2859,8 +2957,9 @@ function renderAllMenus(){
     let list=ALL_PRESETS.filter(p=>{
       const lbls=p.labels||[];
       const matchLabel=!allMenusLabels.length||allMenusLabels.every(l=>lbls.includes(l));
+      const matchExclude=!allMenusExcludeLabels.length||allMenusExcludeLabels.every(l=>!lbls.includes(l));
       const matchQ=!query||p.menu.includes(query)||(p.ingredients&&p.ingredients.some(i=>i.n&&i.n.includes(query)));
-      return matchLabel&&matchQ;
+      return matchLabel&&matchExclude&&matchQ;
     });
     list=list.slice().sort((a,b)=>{
       const la=lastUsed[a.menu]||'';
@@ -3196,10 +3295,40 @@ function appConfirm(msg,onOk,onCancel){
   document.getElementById('app-modal-cancel').onclick=()=>{ov.remove();if(onCancel)onCancel();};
 }
 
-// ===================== FIRST-LAUNCH WELCOME =====================
+// ===================== HELP MESSAGE（❓ヘルプボタン）=====================
+// ★V2.32.0修正：ヘルプ内容の文言を指定フォーマットに合わせて簡潔化。評価可能者を「父のみ」に修正
 function maybeShowWelcome(){
-  if(localStorage.getItem('menuApp_welcomed'))return;
-  localStorage.setItem('menuApp_welcomed','1');
+  let ov=document.getElementById('app-modal-overlay');
+  if(ov)ov.remove();
+  ov=document.createElement('div');
+  ov.id='app-modal-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:80vh;overflow-y:auto">
+    <div style="font-size:20px;font-weight:800;color:var(--navy);margin-bottom:12px">❓ ヘルプ</div>
+    <div style="font-size:14px;color:var(--navy);line-height:1.8;margin-bottom:16px">
+      <b>【画面の見かた】</b><br>
+      📅 今週の献立　… 今週分の献立と材料を確認<br>
+      📆 来週以降の献立　… 事前に登録された次週以降の献立を確認<br>
+      📂 過去の献立　… 終了した週の献立を振り返り<br>
+      📋 全献立リスト　… 登録済みの全メニューから検索・閲覧<br>
+      ℹ️ 前提情報・ルール　… アプリの運用ルールを確認<br>
+      🔤 文字サイズ　… 表示文字の大きさを切り替え<br><br>
+      <b>【材料の確認】</b><br>
+      「今週の材料」タブで手配状況（在庫不明・手配済み・在庫あり）を確認できます。<br><br>
+      <b>【料理の評価】</b><br>
+      👍 いいね／👎 うーんで感想を記録できます。<br>
+      ※評価ができるのは父のみです。
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--gray);margin-bottom:12px">バージョン: ${APP_VERSION}</div>
+    <button onclick="document.getElementById('app-modal-overlay').remove()" style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">閉じる</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+// ===================== FIRST-LAUNCH NOTICE（端末初回のみ自動表示）=====================
+// ★V2.32.0新設：ヘルプとは別に、端末で最初にアプリを開いた時だけ表示する簡易案内
+function maybeShowFirstLaunchNotice(){
+  if(localStorage.getItem('menuApp_firstNoticeShown'))return;
+  localStorage.setItem('menuApp_firstNoticeShown','1');
   let ov=document.getElementById('app-modal-overlay');
   if(ov)ov.remove();
   ov=document.createElement('div');
@@ -3208,16 +3337,9 @@ function maybeShowWelcome(){
   ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:80vh;overflow-y:auto">
     <div style="font-size:20px;font-weight:800;color:var(--navy);margin-bottom:12px">🍽️ 夕食献立管理アプリへようこそ</div>
     <div style="font-size:14px;color:var(--navy);line-height:1.8;margin-bottom:16px">
-      ご利用ありがとうございます。このアプリはご利用者様の夕食献立を管理するものです。<br><br>
-      <b>📋 献立の確認</b><br>
-      トップ画面で今週の献立を確認できます。<br>
-      「献立」タブで曜日ごとの料理を確認してください。<br><br>
-      <b>🛒 材料の確認</b><br>
-      「今週の材料」タブで必要な食材を確認できます。<br>
-      材料の手配状況（在庫不明・手配済み・在庫あり）も表示されます。<br><br>
-      <b>👍 料理の評価</b><br>
-      食べた感想を 👍 いいね / 👎 うーん で記録できます。<br>
-      次回の献立作成の参考になります。
+      今後は本アプリで希望メニューを伝達します。<br>
+      本アプリは自作アプリの為不具合があるかもしれません。<br><br>
+      青木
     </div>
     <button onclick="document.getElementById('app-modal-overlay').remove()" style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">はじめる</button>
   </div>`;
