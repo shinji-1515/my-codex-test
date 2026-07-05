@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>夕食献立管理</title>
 <script>(function(){var z={'medium':'1','large':'1.2','xlarge':'1.4'};if(!localStorage.getItem('menuApp_fontSize'))localStorage.setItem('menuApp_fontSize','medium');var s=localStorage.getItem('menuApp_fontSize');document.documentElement.style.zoom=z[s]||'1';})();</script>
+<!-- ★V2.44.0新設：Webページを開いた際、念のため一度だけ自動でリロードする（キャッシュされた古いJS/最新献立データの取りこぼし対策） -->
+<script>(function(){if(!sessionStorage.getItem('menuApp_autoReloaded')){sessionStorage.setItem('menuApp_autoReloaded','1');location.reload();}})();</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -401,8 +403,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.42.0（2026-07-05 一括ランダム選択ボタンに実行確認を追加）
+// 夕食献立管理アプリ V2.44.0（2026-07-05 ページを開いた際に自動リロードするよう変更）
 // 変更履歴（Changelog）
+// V2.44.0:
+//  [AS-1] V2.43.0の「初回案内メッセージ後に自動リロード」を撤回。代わりにページ読み込み直後、sessionStorageのフラグで無限ループを防ぎつつ1回だけlocation.reload()する処理をheadに追加。ページを開くたび（新しいタブ/セッションごと）に確実に最新状態を読み込ませるための安全策
+// V2.43.0:
+//  [AR-1] 初回限定案内メッセージ（maybeShowFirstLaunchNotice）の「はじめる」ボタンを、モーダルを閉じるだけでなくlocation.reload()するよう変更。念のため初回起動時にもう一度Gist同期を確実に行わせるための安全策
 // V2.42.0:
 //  [AQ-1] confirmRandomizeWeek()を新設。「🎲 月火水金を一括ランダム選択」ボタンをappConfirm()による確認ダイアログ経由に変更し、誤タップで既存の献立が上書きされるのを防止した
 // V2.41.0:
@@ -520,7 +526,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.42.0';
+const APP_VERSION='V2.44.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
