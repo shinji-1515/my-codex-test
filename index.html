@@ -401,8 +401,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.15.0（2026-07-05 来週以降の一覧にも編集リンクを追加）
+// 夕食献立管理アプリ V2.18.0（2026-07-05 副菜・サラダの再抽選ボタンを分離）
 // 変更履歴（Changelog）
+// V2.18.0:
+//  [S-1] rerandomizeSidesForDay()を廃止し、type別に再抽選できるrerandomizeSideType('副菜'|'サラダ')を新設。副菜カードのヘッダーに「🎲副菜」「🎲サラダ」の2つのボタンを設置し、それぞれ単独で再抽選できるようにした（もう片方の項目には影響しない）
+// V2.17.0:
+//  [R-1] 副菜カードの「＋サラダ」ボタンが月・火・水限定表示になっていた制限を撤廃。全曜日で追加できるようにした
+// V2.16.0:
+//  [Q-1] ChatGPTプロンプトモーダルの案内文・ボタンから「コピーして」の文言を削除（「ChatGPT を開く」に変更。動作は従来通りタップで自動コピー）
 // V2.15.0:
 //  [P-1] renderFuture()の各週の行に「✏️ 編集」ボタンを追加。日付をタップして週画面→編集リンクと辿らなくても、一覧から直接goEditWeek()で編集画面（月曜日）に入れるようにした
 // V2.14.0:
@@ -1703,9 +1709,10 @@ function renderAdminDayContent(){
     html+=`<div class="sides-card" style="margin-top:12px">
       <div class="sides-header">🍱 サブ・サラダ
         <div style="display:flex;gap:6px">
-          <button class="sides-toggle-btn" onclick="rerandomizeSidesForDay()">🎲 再抽選</button>
+          <button class="sides-toggle-btn" onclick="rerandomizeSideType('副菜')">🎲副菜</button>
+          <button class="sides-toggle-btn" onclick="rerandomizeSideType('サラダ')">🎲サラダ</button>
           <button class="sides-toggle-btn" onclick="openSideOverlay('副菜')">＋副菜</button>
-          ${['月','火','水'].includes(awDayState.day)?`<button class="sides-toggle-btn" onclick="openSideOverlay('サラダ')">＋サラダ</button>`:''}
+          <button class="sides-toggle-btn" onclick="openSideOverlay('サラダ')">＋サラダ</button>
         </div>
       </div>`;
     sides.forEach((s,si)=>{
@@ -2513,7 +2520,8 @@ const SIDE_CAT_MAP={
   'レトルト調味料':['和え物','煮物','豆腐・大豆'],
 };
 // ★V2.12.0新設：主菜はそのままに、その日の副菜・サラダだけを再抽選する
-function rerandomizeSidesForDay(d){
+// ★V2.18.0修正：副菜・サラダを別々のボタンで再抽選できるよう type 別に分割
+function rerandomizeSideType(type,d){
   d=d||awDayState.day;
   if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
   const weekStart=document.getElementById('aw-start-date').value;
@@ -2526,7 +2534,12 @@ function rerandomizeSidesForDay(d){
     if(wkDate>=twoWeeksAgo){DAYS.forEach(dd=>{(wd.menus?.[dd]?.sides||[]).forEach(s=>{if(s.name)recentSides.add(s.name);});});}
   });
   const weekUsedSideNames=new Set();
-  DAYS.forEach(dd=>{if(dd===d)return;(awDayState.days[dd]?.sides||[]).forEach(s=>{if(s.name)weekUsedSideNames.add(s.name);});});
+  DAYS.forEach(dd=>{
+    (awDayState.days[dd]?.sides||[]).forEach(s=>{
+      if(dd===d&&s.type===type)return; // 差し替え対象自身は重複判定から除外
+      if(s.name)weekUsedSideNames.add(s.name);
+    });
+  });
   const pickFreshSide=(pool)=>{
     const notUsedThisWeek=pool.filter(s=>!weekUsedSideNames.has(s.name));
     const candidates=notUsedThisWeek.length?notUsedThisWeek:pool;
@@ -2534,43 +2547,50 @@ function rerandomizeSidesForDay(d){
     const final=fresh.length?fresh:candidates;
     return final[Math.floor(Math.random()*final.length)];
   };
-  const saladDayOffset={'月':0,'火':1,'水':2};
-  const getSaladForDay=(dd)=>{
-    const idx=(weekEpoch*3+(saladDayOffset[dd]||0))%AEON_SALADS.length;
-    const primary=AEON_SALADS[idx];
-    if(!weekUsedSideNames.has(primary.name))return primary;
-    return pickFreshSide(AEON_SALADS.filter(s=>s.name!==primary.name));
-  };
   const dishes=awDayState.days[d].dishes||[];
   const isCurry=dishes.some(dish=>dish.menu&&dish.menu.includes('カレー'));
-  const newSides=[];
-  if(isCurry){
-    const curryPickle=Math.random()<0.5?{name:'福神漬け',search:'福神漬け'}:{name:'らっきょう',search:'らっきょう'};
-    newSides.push({type:'副菜',name:curryPickle.name,search:curryPickle.search});
-  }else if(d==='金'){
-    const warmPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
-    const tsukemonoPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
-    const side1=pickFreshSide(warmPool);
-    if(side1)weekUsedSideNames.add(side1.name);
-    const side2=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
-    if(side1)newSides.push({type:'副菜',name:side1.name,search:side1.search||side1.name});
-    if(side2)newSides.push({type:'サラダ',name:side2.name,search:side2.search||side2.name});
+  let picked=null;
+  if(type==='副菜'){
+    if(isCurry){
+      const p=Math.random()<0.5?{name:'福神漬け',search:'福神漬け'}:{name:'らっきょう',search:'らっきょう'};
+      picked={type:'副菜',name:p.name,search:p.search};
+    }else if(d==='金'){
+      const warmPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
+      const s=pickFreshSide(warmPool);
+      if(s)picked={type:'副菜',name:s.name,search:s.search||s.name};
+    }else{
+      const dayRule0=(getDayLabelRules(d,weekEpoch)||[{}])[0]||{};
+      const req0=dayRule0.requireLabels||[];
+      const mainLabelKey=req0[0]||'';
+      const preferredCats=SIDE_CAT_MAP[mainLabelKey]||['和え物','煮物','豆腐・大豆'];
+      const sidePool=RETORT_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
+      const finalPool=sidePool.length?sidePool:RETORT_SIDES;
+      const s=pickFreshSide(finalPool);
+      if(s)picked={type:'副菜',name:s.name,search:s.search||s.name};
+    }
   }else{
-    const dayRule0=(getDayLabelRules(d,weekEpoch)||[{}])[0]||{};
-    const req0=dayRule0.requireLabels||[];
-    const mainLabelKey=req0[0]||'';
-    const preferredCats=SIDE_CAT_MAP[mainLabelKey]||['和え物','煮物','豆腐・大豆'];
-    const sidePool=RETORT_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
-    const finalPool=sidePool.length?sidePool:RETORT_SIDES;
-    const side=pickFreshSide(finalPool);
-    if(side)weekUsedSideNames.add(side.name);
-    if(side)newSides.push({type:'副菜',name:side.name,search:side.search||side.name});
-    if(['月','火','水'].includes(d)){
-      const salad=getSaladForDay(d);
-      if(salad)newSides.push({type:'サラダ',name:salad.name,search:salad.search||salad.name});
+    if(d==='金'){
+      const tsukemonoPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
+      const s=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
+      if(s)picked={type:'サラダ',name:s.name,search:s.search||s.name};
+    }else{
+      const saladDayOffset={'月':0,'火':1,'水':2};
+      let s;
+      if(saladDayOffset[d]!==undefined){
+        const idx=(weekEpoch*3+saladDayOffset[d])%AEON_SALADS.length;
+        const primary=AEON_SALADS[idx];
+        s=weekUsedSideNames.has(primary.name)?pickFreshSide(AEON_SALADS.filter(x=>x.name!==primary.name)):primary;
+      }else{
+        s=pickFreshSide(AEON_SALADS);
+      }
+      if(s)picked={type:'サラダ',name:s.name,search:s.search||s.name};
     }
   }
-  awDayState.days[d].sides=newSides;
+  if(!picked){showRatingToast('候補が見つかりません');return;}
+  const sides=awDayState.days[d].sides||[];
+  const idx=sides.findIndex(x=>x.type===type);
+  if(idx>=0)sides[idx]=picked;else sides.push(picked);
+  awDayState.days[d].sides=sides;
   renderAdminDayContent();
 }
 // ★V2.12.0新設：副菜・サラダを1件だけ個別に選び直す（ネットスーパーで欠品していた場合の差し替え用）
@@ -2909,7 +2929,7 @@ function openChatGPT(menuName,persons){
   ov.id='app-modal-overlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
   const escaped=prompt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:20px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:80vh;display:flex;flex-direction:column;gap:0"><div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px">🤖 ChatGPT 用プロンプト</div><div style="background:#e8f8f2;border:2px solid #10a37f;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#0a7a5e;line-height:1.8;font-weight:700">次の手順で進めてください<br>① 「コピーして ChatGPT を開く」ボタンをタップ（テキストは自動でコピーされます）<br>② ChatGPT が開いたら入力欄を<u>長押し</u>して「貼り付け」をタップ</div><textarea readonly id="cgpt-prompt-text" style="flex:1;min-height:180px;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;line-height:1.7;resize:none;font-family:inherit;color:#333;background:#f9f9f9">${escaped}</textarea><div style="display:flex;gap:10px;margin-top:12px"><button onclick="document.getElementById('app-modal-overlay').remove()" class="btn-secondary" style="flex:1">閉じる</button><button id="cgpt-go-btn" style="flex:2;background:#10a37f;color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:14px;font-weight:700;cursor:pointer">📋 コピーして ChatGPT を開く</button></div></div>`;
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:20px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:80vh;display:flex;flex-direction:column;gap:0"><div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px">🤖 ChatGPT 用プロンプト</div><div style="background:#e8f8f2;border:2px solid #10a37f;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#0a7a5e;line-height:1.8;font-weight:700">次の手順で進めてください<br>① 「ChatGPT を開く」ボタンをタップ（テキストは自動でコピーされます）<br>② ChatGPT が開いたら入力欄を<u>長押し</u>して「貼り付け」をタップ</div><textarea readonly id="cgpt-prompt-text" style="flex:1;min-height:180px;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;line-height:1.7;resize:none;font-family:inherit;color:#333;background:#f9f9f9">${escaped}</textarea><div style="display:flex;gap:10px;margin-top:12px"><button onclick="document.getElementById('app-modal-overlay').remove()" class="btn-secondary" style="flex:1">閉じる</button><button id="cgpt-go-btn" style="flex:2;background:#10a37f;color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:14px;font-weight:700;cursor:pointer">📋 ChatGPT を開く</button></div></div>`;
   document.body.appendChild(ov);
   document.getElementById('cgpt-go-btn').onclick=async()=>{
     const btn=document.getElementById('cgpt-go-btn');
