@@ -401,8 +401,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.13.0（2026-07-04 手配チェックに編集リンク・リロードボタン追加）
+// 夕食献立管理アプリ V2.15.0（2026-07-05 来週以降の一覧にも編集リンクを追加）
 // 変更履歴（Changelog）
+// V2.15.0:
+//  [P-1] renderFuture()の各週の行に「✏️ 編集」ボタンを追加。日付をタップして週画面→編集リンクと辿らなくても、一覧から直接goEditWeek()で編集画面（月曜日）に入れるようにした
+// V2.14.0:
+//  [O-1] renderAdminShopChecklist()で表示のたびにweekData.shoppingをbuildShoppingList()で作り直すよう修正。既存週は旧形式（days未記録）のshoppingがDBに保存済みで、そのままでは✏️曜日リンクが出ない不具合があったため
 // V2.13.0:
 //  [N-1] buildShoppingList()で各材料・副菜項目に使用曜日(days)を記録するよう変更
 //  [N-2] renderAdminShopChecklist()で各項目に該当曜日の編集ページへの✏️リンクを追加（曜日をまたいで使う食材は複数リンク表示）
@@ -1611,6 +1615,10 @@ function showAdminShopTab(){setAdminWeekTab('shop');}
 function renderAdminShopChecklist(){
   const k=state.editingWeekKey;
   const weekData=k?DB.weeks[k]:null;
+  // ★V2.14.0修正：保存済みのshoppingは古い形式（days未記録）の場合があるため、表示のたびに現在の献立から作り直す
+  if(weekData&&weekData.menus){
+    weekData.shopping=buildShoppingList(weekData.menus);
+  }
   if(!weekData||!weekData.shopping||weekData.shopping.length===0){
     document.getElementById('aw-shop-content').innerHTML='<p style="padding:20px;color:var(--gray);text-align:center">材料リストが登録されていません</p>';
     return;
@@ -2611,9 +2619,12 @@ function renderFuture(){
   if(futureKeys.length===0) html='<p style="padding:20px;color:var(--gray);text-align:center">来週以降の献立はありません</p>';
   futureKeys.forEach(k=>{
     const cookDays=DAYS.filter(d=>DB.weeks[k]?.menus?.[d]?.cooking).join('・');
-    html+=`<div class="archive-week-row" onclick="go('week',{weekKey:'${k}',weekTab:'menu',weekDay:'月'})">
-      <div><div class="label">${getWeekLabel(k)}</div>${cookDays?`<div style="font-size:12px;color:var(--gray);margin-top:2px">調理日: ${cookDays}</div>`:''}</div>
-      <span style="color:var(--gray)">›</span>
+    html+=`<div class="archive-week-row" style="display:flex;align-items:center;gap:8px">
+      <div style="flex:1;cursor:pointer" onclick="go('week',{weekKey:'${k}',weekTab:'menu',weekDay:'月'})">
+        <div class="label">${getWeekLabel(k)}</div>${cookDays?`<div style="font-size:12px;color:var(--gray);margin-top:2px">調理日: ${cookDays}</div>`:''}
+      </div>
+      <button onclick="event.stopPropagation();goEditWeek('${k}','月')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">✏️ 編集</button>
+      <span style="color:var(--gray);cursor:pointer" onclick="go('week',{weekKey:'${k}',weekTab:'menu',weekDay:'月'})">›</span>
     </div>`;
   });
   document.getElementById('future-content').innerHTML=html;
