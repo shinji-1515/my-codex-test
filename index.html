@@ -401,8 +401,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.11.0（2026-07-04 来週以降のページにも編集リンクを表示）
+// 夕食献立管理アプリ V2.13.0（2026-07-04 手配チェックに編集リンク・リロードボタン追加）
 // 変更履歴（Changelog）
+// V2.13.0:
+//  [N-1] buildShoppingList()で各材料・副菜項目に使用曜日(days)を記録するよう変更
+//  [N-2] renderAdminShopChecklist()で各項目に該当曜日の編集ページへの✏️リンクを追加（曜日をまたいで使う食材は複数リンク表示）
+//  [N-3] 手配チェック画面の上部に🔄リロードボタンを追加（登録し直した献立を最新状態で再取得できる）
+// V2.12.0:
+//  [M-1] AEON_SIDESの全商品に「レトルト完成品」ラベルを付与し、RETORT_SIDES（絞り込み済みプール）を新設。副菜のランダム選定（一括・単日とも）はネットスーパーで欠品しにくいこのプールのみから選ぶよう変更
+//  [M-2] rerandomizeSidesForDay()を新設。主菜は変えずにその日の副菜・サラダだけをまとめて再抽選できる「🎲 再抽選」ボタンを副菜カードのヘッダーに追加
+//  [M-3] rerollSideItem()を新設。副菜・サラダの各行に「🔄」ボタンを追加し、ネットスーパーで欠品していた商品だけを1品単位で選び直せるようにした
 // V2.11.0:
 //  [L-1] renderMenuTab()で「調理なし」「献立未登録」表示時にも✏️編集リンクが出ていなかった不具合を修正。来週以降の献立ページ（まだ調理日設定・料理登録がされていない状態）でも編集リンクが常に表示されるようにした
 // V2.10.0:
@@ -822,55 +830,57 @@ const PRESET_DISHES=[
 
 // ===================== AEON PRODUCTS =====================
 const AEON_SIDES=[
-  {name:'ひじきの煮物',labels:['煮物'],search:'ひじき 煮物'},
-  {name:'切り干し大根',labels:['煮物'],search:'切り干し大根 惣菜'},
-  {name:'かぼちゃの煮物',labels:['煮物'],search:'かぼちゃ 煮物 惣菜'},
-  {name:'いんげんのごま和え',labels:['和え物'],search:'いんげん ごま和え'},
-  {name:'ほうれん草のごま和え',labels:['和え物'],search:'ほうれん草 ごま和え'},
-  {name:'きんぴらごぼう',labels:['煮物'],search:'きんぴらごぼう 惣菜'},
-  {name:'かぼちゃとさつまいもの甘煮',labels:['煮物'],search:'かぼちゃ さつまいも 甘煮'},
-  {name:'厚揚げのそぼろ煮',labels:['豆腐・大豆'],search:'厚揚げ そぼろ 惣菜'},
-  {name:'茶碗蒸し',labels:['卵'],search:'茶碗蒸し レトルト'},
-  {name:'温泉たまご',labels:['卵'],search:'温泉たまご'},
-  {name:'だし巻き卵',labels:['卵'],search:'だし巻き卵 惣菜'},
-  {name:'玉子豆腐',labels:['卵'],search:'玉子豆腐'},
-  {name:'ひじきとれんこん煮',labels:['煮物'],search:'ひじき れんこん 惣菜'},
-  {name:'大豆の煮物',labels:['豆腐・大豆'],search:'大豆 煮物 惣菜'},
-  {name:'白和え',labels:['和え物'],search:'白和え 惣菜'},
-  {name:'冷ややっこ',labels:['豆腐・大豆'],search:'冷ややっこ'},
-  {name:'福神漬け',labels:['漬物'],search:'福神漬け'},
-  {name:'らっきょう',labels:['漬物'],search:'らっきょう'},
-  {name:'きゅうりの漬物',labels:['漬物'],search:'きゅうり 漬物'},
-  {name:'白菜の浅漬け',labels:['漬物'],search:'白菜 浅漬け'},
-  {name:'小松菜のおひたし',labels:['和え物'],search:'小松菜 おひたし 惣菜'},
-  {name:'ほうれん草のおひたし',labels:['和え物'],search:'ほうれん草 おひたし 惣菜'},
-  {name:'ブロッコリーのごま和え',labels:['和え物'],search:'ブロッコリー ごま和え'},
-  {name:'なすの煮浸し',labels:['煮物'],search:'なす 煮浸し 惣菜'},
-  {name:'里芋の煮物',labels:['煮物'],search:'里芋 煮物 惣菜'},
-  {name:'たけのこの煮物',labels:['煮物'],search:'たけのこ 煮物 惣菜'},
-  {name:'れんこんのきんぴら',labels:['煮物'],search:'れんこん きんぴら 惣菜'},
-  {name:'春雨の炒め煮',labels:['煮物'],search:'春雨 炒め煮 惣菜'},
-  {name:'こんにゃくの炒り煮',labels:['煮物'],search:'こんにゃく 炒り煮 惣菜'},
-  {name:'かぼちゃのそぼろ煮',labels:['煮物'],search:'かぼちゃ そぼろ煮 惣菜'},
-  {name:'おでん（大根・こんにゃく）',labels:['煮物'],search:'おでん 惣菜'},
-  {name:'豆腐のあんかけ煮',labels:['豆腐・大豆'],search:'豆腐 あんかけ 惣菜'},
-  {name:'揚げ出し豆腐',labels:['豆腐・大豆'],search:'揚げ出し豆腐 惣菜'},
-  {name:'厚揚げの煮物',labels:['豆腐・大豆'],search:'厚揚げ 煮物 惣菜'},
-  {name:'枝豆（冷凍）',labels:['豆腐・大豆'],search:'枝豆 冷凍'},
-  {name:'卵焼き',labels:['卵'],search:'卵焼き 惣菜'},
-  {name:'スコッチエッグ',labels:['卵'],search:'スコッチエッグ 惣菜'},
-  {name:'にんじんの梅和え',labels:['和え物'],search:'にんじん 梅和え 惣菜'},
-  {name:'しらたきのきんぴら',labels:['煮物'],search:'しらたき きんぴら 惣菜'},
-  {name:'きゅうりとわかめの酢の物',labels:['和え物'],search:'きゅうり わかめ 酢の物 惣菜'},
-  {name:'高野豆腐の煮物',labels:['豆腐・大豆'],search:'高野豆腐 煮物 惣菜'},
-  {name:'ぬか漬け',labels:['漬物'],search:'ぬか漬け 惣菜'},
-  {name:'しば漬け',labels:['漬物'],search:'しば漬け'},
-  {name:'大根の漬物',labels:['漬物'],search:'大根 漬物'},
-  {name:'ザーサイ',labels:['漬物'],search:'ザーサイ'},
-  {name:'小松菜と油揚げの煮浸し',labels:['煮物'],search:'小松菜 油揚げ 煮浸し'},
-  {name:'ちくわの磯辺揚げ風',labels:['豆腐・大豆'],search:'ちくわ 磯辺揚げ 惣菜'},
-  {name:'かつおの角煮',labels:['煮物'],search:'かつお 角煮 惣菜'},
+  {name:'ひじきの煮物',labels:['煮物','レトルト完成品'],search:'ひじき 煮物'},
+  {name:'切り干し大根',labels:['煮物','レトルト完成品'],search:'切り干し大根 惣菜'},
+  {name:'かぼちゃの煮物',labels:['煮物','レトルト完成品'],search:'かぼちゃ 煮物 惣菜'},
+  {name:'いんげんのごま和え',labels:['和え物','レトルト完成品'],search:'いんげん ごま和え'},
+  {name:'ほうれん草のごま和え',labels:['和え物','レトルト完成品'],search:'ほうれん草 ごま和え'},
+  {name:'きんぴらごぼう',labels:['煮物','レトルト完成品'],search:'きんぴらごぼう 惣菜'},
+  {name:'かぼちゃとさつまいもの甘煮',labels:['煮物','レトルト完成品'],search:'かぼちゃ さつまいも 甘煮'},
+  {name:'厚揚げのそぼろ煮',labels:['豆腐・大豆','レトルト完成品'],search:'厚揚げ そぼろ 惣菜'},
+  {name:'茶碗蒸し',labels:['卵','レトルト完成品'],search:'茶碗蒸し レトルト'},
+  {name:'温泉たまご',labels:['卵','レトルト完成品'],search:'温泉たまご'},
+  {name:'だし巻き卵',labels:['卵','レトルト完成品'],search:'だし巻き卵 惣菜'},
+  {name:'玉子豆腐',labels:['卵','レトルト完成品'],search:'玉子豆腐'},
+  {name:'ひじきとれんこん煮',labels:['煮物','レトルト完成品'],search:'ひじき れんこん 惣菜'},
+  {name:'大豆の煮物',labels:['豆腐・大豆','レトルト完成品'],search:'大豆 煮物 惣菜'},
+  {name:'白和え',labels:['和え物','レトルト完成品'],search:'白和え 惣菜'},
+  {name:'冷ややっこ',labels:['豆腐・大豆','レトルト完成品'],search:'冷ややっこ'},
+  {name:'福神漬け',labels:['漬物','レトルト完成品'],search:'福神漬け'},
+  {name:'らっきょう',labels:['漬物','レトルト完成品'],search:'らっきょう'},
+  {name:'きゅうりの漬物',labels:['漬物','レトルト完成品'],search:'きゅうり 漬物'},
+  {name:'白菜の浅漬け',labels:['漬物','レトルト完成品'],search:'白菜 浅漬け'},
+  {name:'小松菜のおひたし',labels:['和え物','レトルト完成品'],search:'小松菜 おひたし 惣菜'},
+  {name:'ほうれん草のおひたし',labels:['和え物','レトルト完成品'],search:'ほうれん草 おひたし 惣菜'},
+  {name:'ブロッコリーのごま和え',labels:['和え物','レトルト完成品'],search:'ブロッコリー ごま和え'},
+  {name:'なすの煮浸し',labels:['煮物','レトルト完成品'],search:'なす 煮浸し 惣菜'},
+  {name:'里芋の煮物',labels:['煮物','レトルト完成品'],search:'里芋 煮物 惣菜'},
+  {name:'たけのこの煮物',labels:['煮物','レトルト完成品'],search:'たけのこ 煮物 惣菜'},
+  {name:'れんこんのきんぴら',labels:['煮物','レトルト完成品'],search:'れんこん きんぴら 惣菜'},
+  {name:'春雨の炒め煮',labels:['煮物','レトルト完成品'],search:'春雨 炒め煮 惣菜'},
+  {name:'こんにゃくの炒り煮',labels:['煮物','レトルト完成品'],search:'こんにゃく 炒り煮 惣菜'},
+  {name:'かぼちゃのそぼろ煮',labels:['煮物','レトルト完成品'],search:'かぼちゃ そぼろ煮 惣菜'},
+  {name:'おでん（大根・こんにゃく）',labels:['煮物','レトルト完成品'],search:'おでん 惣菜'},
+  {name:'豆腐のあんかけ煮',labels:['豆腐・大豆','レトルト完成品'],search:'豆腐 あんかけ 惣菜'},
+  {name:'揚げ出し豆腐',labels:['豆腐・大豆','レトルト完成品'],search:'揚げ出し豆腐 惣菜'},
+  {name:'厚揚げの煮物',labels:['豆腐・大豆','レトルト完成品'],search:'厚揚げ 煮物 惣菜'},
+  {name:'枝豆（冷凍）',labels:['豆腐・大豆','レトルト完成品'],search:'枝豆 冷凍'},
+  {name:'卵焼き',labels:['卵','レトルト完成品'],search:'卵焼き 惣菜'},
+  {name:'スコッチエッグ',labels:['卵','レトルト完成品'],search:'スコッチエッグ 惣菜'},
+  {name:'にんじんの梅和え',labels:['和え物','レトルト完成品'],search:'にんじん 梅和え 惣菜'},
+  {name:'しらたきのきんぴら',labels:['煮物','レトルト完成品'],search:'しらたき きんぴら 惣菜'},
+  {name:'きゅうりとわかめの酢の物',labels:['和え物','レトルト完成品'],search:'きゅうり わかめ 酢の物 惣菜'},
+  {name:'高野豆腐の煮物',labels:['豆腐・大豆','レトルト完成品'],search:'高野豆腐 煮物 惣菜'},
+  {name:'ぬか漬け',labels:['漬物','レトルト完成品'],search:'ぬか漬け 惣菜'},
+  {name:'しば漬け',labels:['漬物','レトルト完成品'],search:'しば漬け'},
+  {name:'大根の漬物',labels:['漬物','レトルト完成品'],search:'大根 漬物'},
+  {name:'ザーサイ',labels:['漬物','レトルト完成品'],search:'ザーサイ'},
+  {name:'小松菜と油揚げの煮浸し',labels:['煮物','レトルト完成品'],search:'小松菜 油揚げ 煮浸し'},
+  {name:'ちくわの磯辺揚げ風',labels:['豆腐・大豆','レトルト完成品'],search:'ちくわ 磯辺揚げ 惣菜'},
+  {name:'かつおの角煮',labels:['煮物','レトルト完成品'],search:'かつお 角煮 惣菜'},
 ];
+// ★V2.12.0新設：副菜のランダム候補は「レトルト完成品」ラベル付き（ネットスーパーで欠品しにくい保存可能商品）のみに限定
+const RETORT_SIDES=AEON_SIDES.filter(s=>(s.labels||[]).includes('レトルト完成品'));
 const AEON_SALADS=[
   {name:'グリーンサラダ（袋）',labels:['サラダ袋'],search:'グリーンサラダ 袋'},
   {name:'ミックスサラダ（袋）',labels:['サラダ袋'],search:'ミックスサラダ 袋'},
@@ -1609,7 +1619,10 @@ function renderAdminShopChecklist(){
   const total=weekData.shopping.reduce((a,c)=>a+c.items.length,0);
   const done=Object.values(savedChecks).filter(v=>v==='arranged'||v==='stocked').length;
   const pct=total>0?Math.round(done/total*100):0;
-  let html=`<div style="margin-bottom:16px">
+  let html=`<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <button class="sides-toggle-btn" style="border:1px solid var(--amber);border-radius:8px;padding:6px 14px" onclick="renderAdminShopChecklist()">🔄 リロード</button>
+  </div>
+  <div style="margin-bottom:16px">
     <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
     <div class="progress-label">${done}/${total} 手配済み (${pct}%)</div>
   </div>`;
@@ -1618,9 +1631,12 @@ function renderAdminShopChecklist(){
       const ck=savedChecks[item.id]||false;
       const st=savedChecks[item.id]||null;
       const mn=jsArg(item.name);
+      const dayLinks=(item.days||[]).map(d=>`<button class="sides-toggle-btn" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();goEditWeek('${k}','${d}')">✏️${d}</button>`).join('');
       return `<div class="shop-item" onclick="toggleShop('${k}','${jsArg(item.id)}');renderAdminShopChecklist();renderWeekContent()" style="cursor:pointer">
         <div style="flex:1"><div class="shop-item-name">${esc(item.name)}</div>
-          <div class="shop-item-detail">${esc(item.detail)}</div></div>
+          <div class="shop-item-detail">${esc(item.detail)}</div>
+          ${dayLinks?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${dayLinks}</div>`:''}
+        </div>
         ${shopBadge(st)}
         <button class="aeon-btn" style="margin-left:6px" onclick="event.stopPropagation();openAeon('${mn}')">🛒</button>
       </div>`;
@@ -1679,6 +1695,7 @@ function renderAdminDayContent(){
     html+=`<div class="sides-card" style="margin-top:12px">
       <div class="sides-header">🍱 サブ・サラダ
         <div style="display:flex;gap:6px">
+          <button class="sides-toggle-btn" onclick="rerandomizeSidesForDay()">🎲 再抽選</button>
           <button class="sides-toggle-btn" onclick="openSideOverlay('副菜')">＋副菜</button>
           ${['月','火','水'].includes(awDayState.day)?`<button class="sides-toggle-btn" onclick="openSideOverlay('サラダ')">＋サラダ</button>`:''}
         </div>
@@ -1687,6 +1704,7 @@ function renderAdminDayContent(){
       html+=`<div class="side-row">
         <span class="side-type-badge">${esc(s.type)}</span>
         <span class="side-name">${esc(s.name)}</span>
+        <button class="sides-toggle-btn" style="padding:4px 8px;font-size:12px" onclick="rerollSideItem(${si})">🔄</button>
         <button class="btn-danger" style="padding:4px 10px;font-size:12px" onclick="removeSide(${si})">✕</button>
       </div>`;
     });
@@ -1768,23 +1786,26 @@ function buildShoppingList(menus){
       if(ings.length===0&&dish.menu&&dish.menu.trim()){
         // 材料未登録の手動入力献立: メニュー名をその他に登録
         const key=dish.menu.trim();
-        if(!buckets['調味料・その他'].map[key])buckets['調味料・その他'].map[key]={id:key,name:key,detail:'その他'};
+        if(!buckets['調味料・その他'].map[key])buckets['調味料・その他'].map[key]={id:key,name:key,detail:'その他',days:[]};
+        if(!buckets['調味料・その他'].map[key].days.includes(d))buckets['調味料・その他'].map[key].days.push(d);
       }
       const _p=getPersonCount(dish.target);
       ings.forEach(ing=>{
         const key=ing.n.trim();
         const cat=catIng(key);
-        if(!buckets[cat].map[key])buckets[cat].map[key]={id:key,name:key,detail:''};
+        if(!buckets[cat].map[key])buckets[cat].map[key]={id:key,name:key,detail:'',days:[]};
         const dispAmt=ing.adj!=null?ing.adj:getIngAmount(ing,_p);
         const detail=`${dispAmt}(${dish.menu.slice(0,8)})`;
         buckets[cat].map[key].detail+=(buckets[cat].map[key].detail?'、':'')+detail;
+        if(!buckets[cat].map[key].days.includes(d))buckets[cat].map[key].days.push(d);
       });
     });
     (day.sides||[]).forEach(s=>{
       if(!s.name||!s.name.trim())return;
       const cat=s.type==='サラダ'?'野菜':'調味料・その他';
       const key=s.name;
-      if(!buckets[cat].map[key])buckets[cat].map[key]={id:key,name:s.name,detail:s.type};
+      if(!buckets[cat].map[key])buckets[cat].map[key]={id:key,name:s.name,detail:s.type,days:[]};
+      if(!buckets[cat].map[key].days.includes(d))buckets[cat].map[key].days.push(d);
     });
   });
   return Object.entries(buckets)
@@ -2446,8 +2467,8 @@ function randomizeDays(cookDays){
       awDayState.days[d].sides.push({type:'副菜',name:curryPickle.name,search:curryPickle.search});
       weekUsedSideNames.add(curryPickle.name);
     }else if(d==='金'){
-      const warmPool=AEON_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
-      const tsukemonoPool=AEON_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
+      const warmPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
+      const tsukemonoPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
       const side1=pickFreshSide(warmPool);
       if(side1)weekUsedSideNames.add(side1.name);
       const side2=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
@@ -2459,8 +2480,8 @@ function randomizeDays(cookDays){
       const req0=dayRule0.requireLabels||[];
       const mainLabelKey=req0[0]||'';
       const preferredCats=sideCatMap[mainLabelKey]||['和え物','煮物','豆腐・大豆'];
-      const sidePool=AEON_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
-      const finalPool=sidePool.length?sidePool:AEON_SIDES;
+      const sidePool=RETORT_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
+      const finalPool=sidePool.length?sidePool:RETORT_SIDES;
       const side=pickFreshSide(finalPool);
       if(side)weekUsedSideNames.add(side.name);
       if(side)awDayState.days[d].sides.push({type:'副菜',name:side.name,search:side.search||side.name});
@@ -2471,6 +2492,93 @@ function randomizeDays(cookDays){
       }
     }
   });
+  renderAdminDayContent();
+}
+// ★V2.12.0新設：主菜メニューの実装(sideCatMap)を単体再抽選からも参照できるよう共通化
+const SIDE_CAT_MAP={
+  '肉メイン':      ['和え物','豆腐・大豆','卵'],
+  '海老料理':      ['和え物','豆腐・大豆','卵'],
+  '魚料理':        ['豆腐・大豆','和え物','煮物','卵'],
+  '残り野菜活用':  ['和え物','豆腐・大豆','卵'],
+  '肉野菜':        ['和え物','煮物','豆腐・大豆'],
+  '肉無し料理':    ['和え物','煮物','豆腐・大豆'],
+  'レトルト調味料':['和え物','煮物','豆腐・大豆'],
+};
+// ★V2.12.0新設：主菜はそのままに、その日の副菜・サラダだけを再抽選する
+function rerandomizeSidesForDay(d){
+  d=d||awDayState.day;
+  if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
+  const weekStart=document.getElementById('aw-start-date').value;
+  const weekEpoch=weekStart?Math.floor(new Date(weekStart+'T00:00:00').getTime()/(7*24*3600*1000)):0;
+  const now2w=new Date();now2w.setHours(0,0,0,0);
+  const twoWeeksAgo=new Date(now2w);twoWeeksAgo.setDate(twoWeeksAgo.getDate()-14);
+  const recentSides=new Set();
+  Object.entries(DB.weeks).forEach(([wk,wd])=>{
+    const wkDate=new Date(wk+'T00:00:00');
+    if(wkDate>=twoWeeksAgo){DAYS.forEach(dd=>{(wd.menus?.[dd]?.sides||[]).forEach(s=>{if(s.name)recentSides.add(s.name);});});}
+  });
+  const weekUsedSideNames=new Set();
+  DAYS.forEach(dd=>{if(dd===d)return;(awDayState.days[dd]?.sides||[]).forEach(s=>{if(s.name)weekUsedSideNames.add(s.name);});});
+  const pickFreshSide=(pool)=>{
+    const notUsedThisWeek=pool.filter(s=>!weekUsedSideNames.has(s.name));
+    const candidates=notUsedThisWeek.length?notUsedThisWeek:pool;
+    const fresh=candidates.filter(s=>!recentSides.has(s.name));
+    const final=fresh.length?fresh:candidates;
+    return final[Math.floor(Math.random()*final.length)];
+  };
+  const saladDayOffset={'月':0,'火':1,'水':2};
+  const getSaladForDay=(dd)=>{
+    const idx=(weekEpoch*3+(saladDayOffset[dd]||0))%AEON_SALADS.length;
+    const primary=AEON_SALADS[idx];
+    if(!weekUsedSideNames.has(primary.name))return primary;
+    return pickFreshSide(AEON_SALADS.filter(s=>s.name!==primary.name));
+  };
+  const dishes=awDayState.days[d].dishes||[];
+  const isCurry=dishes.some(dish=>dish.menu&&dish.menu.includes('カレー'));
+  const newSides=[];
+  if(isCurry){
+    const curryPickle=Math.random()<0.5?{name:'福神漬け',search:'福神漬け'}:{name:'らっきょう',search:'らっきょう'};
+    newSides.push({type:'副菜',name:curryPickle.name,search:curryPickle.search});
+  }else if(d==='金'){
+    const warmPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
+    const tsukemonoPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
+    const side1=pickFreshSide(warmPool);
+    if(side1)weekUsedSideNames.add(side1.name);
+    const side2=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
+    if(side1)newSides.push({type:'副菜',name:side1.name,search:side1.search||side1.name});
+    if(side2)newSides.push({type:'サラダ',name:side2.name,search:side2.search||side2.name});
+  }else{
+    const dayRule0=(getDayLabelRules(d,weekEpoch)||[{}])[0]||{};
+    const req0=dayRule0.requireLabels||[];
+    const mainLabelKey=req0[0]||'';
+    const preferredCats=SIDE_CAT_MAP[mainLabelKey]||['和え物','煮物','豆腐・大豆'];
+    const sidePool=RETORT_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
+    const finalPool=sidePool.length?sidePool:RETORT_SIDES;
+    const side=pickFreshSide(finalPool);
+    if(side)weekUsedSideNames.add(side.name);
+    if(side)newSides.push({type:'副菜',name:side.name,search:side.search||side.name});
+    if(['月','火','水'].includes(d)){
+      const salad=getSaladForDay(d);
+      if(salad)newSides.push({type:'サラダ',name:salad.name,search:salad.search||salad.name});
+    }
+  }
+  awDayState.days[d].sides=newSides;
+  renderAdminDayContent();
+}
+// ★V2.12.0新設：副菜・サラダを1件だけ個別に選び直す（ネットスーパーで欠品していた場合の差し替え用）
+function rerollSideItem(idx){
+  const d=awDayState.day;
+  const sides=awDayState.days[d]?.sides||[];
+  const cur=sides[idx];
+  if(!cur)return;
+  const isSalad=cur.type==='サラダ';
+  const basePool=isSalad?AEON_SALADS:RETORT_SIDES;
+  const otherNames=new Set(sides.filter((s,i)=>i!==idx).map(s=>s.name));
+  const candidates=basePool.filter(s=>s.name!==cur.name&&!otherNames.has(s.name));
+  const finalPool=candidates.length?candidates:basePool.filter(s=>s.name!==cur.name);
+  if(!finalPool.length){showRatingToast('他に候補がありません');return;}
+  const picked=finalPool[Math.floor(Math.random()*finalPool.length)];
+  sides[idx]={type:cur.type,name:picked.name,search:picked.search||picked.name};
   renderAdminDayContent();
 }
 
