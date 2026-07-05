@@ -401,8 +401,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.26.0（2026-07-05 未確認・手配済み等バッジの文字サイズを拡大）
+// 夕食献立管理アプリ V2.27.0（2026-07-05 「未確認」表示を「在庫不明」に変更）
 // 変更履歴（Changelog）
+// V2.27.0:
+//  [AB-1] shopBadge()/shopIngBadge()および設定画面の説明文にある「未確認」の表記を「在庫不明」に変更
 // V2.26.0:
 //  [AA-1] shopBadge()/shopIngBadge()の「未確認」「手配済み」「在庫あり」バッジの文字サイズを拡大（11px→15px、10px→14px）し、読みやすくした
 // V2.25.0:
@@ -1436,12 +1438,12 @@ function shopNextState(cur){
 function shopBadge(state){
   if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0">手配済み</span>`;
   if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0">在庫あり</span>`;
-  return `<span style="background:var(--gray-l);color:var(--gray);font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;border:1px solid var(--border)">未確認</span>`;
+  return `<span style="background:var(--gray-l);color:var(--gray);font-size:15px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;border:1px solid var(--border)">在庫不明</span>`;
 }
 function shopIngBadge(state){
   if(state==='arranged')return `<span style="background:var(--green);color:#fff;font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px">手配済み</span>`;
   if(state==='stocked')return `<span style="background:#1565C0;color:#fff;font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px">在庫あり</span>`;
-  return `<span style="background:var(--gray-l);color:var(--gray);font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px;border:1px solid var(--border)">未確認</span>`;
+  return `<span style="background:var(--gray-l);color:var(--gray);font-size:14px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:4px;border:1px solid var(--border)">在庫不明</span>`;
 }
 function toggleShop(weekKey,itemId){
   const checks=getShopChecks(weekKey);
@@ -3212,7 +3214,7 @@ function maybeShowWelcome(){
       「献立」タブで曜日ごとの料理を確認してください。<br><br>
       <b>🛒 材料の確認</b><br>
       「今週の材料」タブで必要な食材を確認できます。<br>
-      材料の手配状況（未確認・手配済み・在庫あり）も表示されます。<br><br>
+      材料の手配状況（在庫不明・手配済み・在庫あり）も表示されます。<br><br>
       <b>👍 料理の評価</b><br>
       食べた感想を 👍 いいね / 👎 うーん で記録できます。<br>
       次回の献立作成の参考になります。
