@@ -297,6 +297,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
     <div class="btab active" id="btab-menu" onclick="setWeekTab('menu')"><span class="ico">📅</span>献立</div>
     <div class="btab" id="btab-shop" onclick="setWeekTab('shop')"><span class="ico">🛒</span>今週の材料</div>
     <div class="btab no-print" id="btab-print" onclick="printWeek()"><span class="ico">🖨️</span>印刷</div>
+    <div class="btab no-print" id="btab-send" onclick="setWeekTab('send')"><span class="ico">📤</span>送信用</div>
   </div>
 </div>
 
@@ -403,8 +404,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.44.0（2026-07-05 ページを開いた際に自動リロードするよう変更）
+// 夕食献立管理アプリ V2.46.0（2026-07-06 送信用テキストの文面・表示内容を改修）
 // 変更履歴（Changelog）
+// V2.46.0:
+//  [AU-1] buildSendText()冒頭の挨拶文（「いつもお世話になっております。」等）を削除し、曜日リストからそのまま始まるようにした
+//  [AU-2] 副菜・サラダの表記を「副菜（レトルト）」「サラダ（袋）」に変更し、レトルト・袋であることを明記した
+//  [AU-3] 各材料・副菜・サラダ行の末尾に手配状況（手配済み／在庫あり／在庫不明）を追記。renderSendTab()にweekKeyを渡し、getShopChecks()で取得するようにした
+//  [AU-4] 調理なしの日の表記を「本日は調理なし」から「調理なし」に変更
+// V2.45.0:
+//  [AT-1] 週画面の「印刷」タブの右隣に「📤 送信用」タブを新設。buildSendText()で曜日ごとのメニュー・材料を冒頭にヘルパーの方への挨拶文付きでテキスト化し、readonlyのtextareaに表示するようにした
+//  [AT-2] copySendText()を新設し、「📋 コピー」ボタンでテキスト全体をクリップボードにコピーできるようにした（Android等でclipboard API不可の場合はexecCommandへフォールバック）
 // V2.44.0:
 //  [AS-1] V2.43.0の「初回案内メッセージ後に自動リロード」を撤回。代わりにページ読み込み直後、sessionStorageのフラグで無限ループを防ぎつつ1回だけlocation.reload()する処理をheadに追加。ページを開くたび（新しいタブ/セッションごと）に確実に最新状態を読み込ませるための安全策
 // V2.43.0:
@@ -526,7 +535,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.44.0';
+const APP_VERSION='V2.46.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1323,7 +1332,7 @@ function renderWeek(){
 
 function setWeekTab(t){
   state.weekTab=t;
-  ['menu','shop'].forEach(x=>{
+  ['menu','shop','send'].forEach(x=>{
     const el=document.getElementById('btab-'+x);
     if(el)el.classList.toggle('active',x===t);
   });
@@ -1347,6 +1356,8 @@ function renderWeekContent(){
     el.innerHTML=renderMenuTab(weekData);
   }else if(state.weekTab==='shop'){
     el.innerHTML=renderShopTab(weekData,k);
+  }else if(state.weekTab==='send'){
+    el.innerHTML=renderSendTab(weekData,k);
   }
 }
 
@@ -1495,6 +1506,75 @@ function renderShopTab(weekData,weekKey){
   const wk=weekKey.replace(/'/g,"\\'");
   html+=`<button class="btn-primary" style="margin-top:8px" onclick="goShopAdmin('${wk}')">🛒 手配チェックへ</button>`;
   return html;
+}
+// ===== 送信用タブ（V2.45.0新設／V2.46.0改修） =====
+// ヘルパーの方へ曜日ごとのメニュー・材料をそのままコピー＆送信できるテキストを組み立てる
+// ★V2.46.0新設：手配状況（手配済み／在庫あり／在庫不明）の文言をshopChecksの状態値から算出する
+function sendStatusLabel(st){
+  if(st==='arranged')return '手配済み';
+  if(st==='stocked')return '在庫あり';
+  return '在庫不明';
+}
+// ★V2.46.0修正：冒頭の挨拶文を廃止し、weekKeyを受け取ってshopChecks（手配状況）を各行に反映するよう変更
+function buildSendText(weekData,weekKey){
+  const lines=[];
+  const shopChecks=weekKey?getShopChecks(weekKey):{};
+  DAYS.forEach(d=>{
+    const day=weekData.menus[d];
+    lines.push(`【${d}曜日】`);
+    if(!day||!day.cooking){
+      lines.push('調理なし');
+      lines.push('');
+      return;
+    }
+    (day.dishes||[]).forEach(dish=>{
+      if(!dish.menu||!dish.menu.trim())return;
+      const _p=getPersonCount(dish.target);
+      lines.push(`◆${dish.menu}${dish.target?`（${dish.target}）`:''}`);
+      (dish.ingredients||[]).forEach(ing=>{
+        if(!ing.n||!ing.n.trim())return;
+        const amt=ing.adj!=null?ing.adj:getIngAmount(ing,_p);
+        const st=sendStatusLabel(shopChecks[ing.n.trim()]);
+        lines.push(`　・${ing.n}　${amt}　[${st}]`);
+      });
+    });
+    (day.sides||[]).forEach(s=>{
+      if(!s.name||!s.name.trim())return;
+      // ★V2.46.0修正：副菜・サラダにレトルト／袋の表記を追加し、手配状況も付記する
+      const typeLabel=s.type==='サラダ'?'サラダ（袋）':'副菜（レトルト）';
+      const st=sendStatusLabel(shopChecks[s.name]);
+      lines.push(`◆${typeLabel}：${s.name}　[${st}]`);
+    });
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+function renderSendTab(weekData,weekKey){
+  if(!weekData||!weekData.menus){
+    return '<p style="padding:20px;color:var(--gray);text-align:center">献立が登録されていません</p>';
+  }
+  const text=buildSendText(weekData,weekKey);
+  return `<div style="padding:8px 0">
+    <textarea readonly id="send-text-area" style="width:100%;min-height:50vh;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:14px;line-height:1.8;resize:vertical;font-family:inherit;color:#333;background:#f9f9f9">${esc(text)}</textarea>
+    <button class="btn-primary" style="width:100%;margin-top:10px" onclick="copySendText()">📋 コピー</button>
+  </div>`;
+}
+function copySendText(){
+  const ta=document.getElementById('send-text-area');
+  if(!ta)return;
+  const text=ta.value;
+  navigator.clipboard.writeText(text).then(()=>{
+    showRatingToast('📋 コピーしました');
+  }).catch(()=>{
+    try{
+      ta.removeAttribute('readonly');
+      ta.focus();
+      ta.setSelectionRange(0,ta.value.length);
+      const ok=document.execCommand('copy');
+      ta.setAttribute('readonly','');
+      showRatingToast(ok?'📋 コピーしました':'⚠️ コピーに失敗しました');
+    }catch(e){showRatingToast('⚠️ コピーに失敗しました');}
+  });
 }
 function goShopAdmin(weekKey){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
