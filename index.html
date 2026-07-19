@@ -328,6 +328,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
   <div class="header"><button class="back-btn" onclick="go('top')">←</button><h1>管理画面</h1></div>
   <div class="content no-pad-bottom">
     <button class="btn-primary" style="margin-bottom:16px" onclick="goAdminNewWeek()">＋ 新しい週を追加</button>
+    <button class="btn-secondary" style="margin-bottom:16px" onclick="go('random-settings')">🎲 ランダム生成設定</button>
     <div class="section-title">登録済み週</div>
     <div id="admin-week-list"></div>
     <div class="admin-card" style="margin-top:20px">
@@ -368,6 +369,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
   </div>
 </div>
 
+<!-- RANDOM GENERATION SETTINGS（V2.49.0新設） -->
+<div id="screen-random-settings" class="screen">
+  <div class="header"><button class="back-btn" onclick="go('admin')">←</button><h1>🎲 ランダム生成設定</h1></div>
+  <div class="content no-pad-bottom" id="random-settings-content"></div>
+</div>
+
 <!-- ADMIN WEEK EDIT -->
 <div id="screen-admin-week" class="screen">
   <div class="header"><button class="back-btn" onclick="go('admin')">←</button><h1 id="admin-week-title">週の設定</h1></div>
@@ -404,13 +411,27 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.46.0（2026-07-06 送信用テキストの文面・表示内容を改修）
+// 夕食献立管理アプリ V2.50.0（2026-07-06 送信用文にガス元栓注記を追加・編集保存に対応）
 // 変更履歴（Changelog）
+// V2.50.0:
+//  [AY-1] buildSendText()の冒頭に「⚠️ 調理後はコンロ（ガス）の元栓をしめてください」を追加
+//  [AY-2] 送信用テキストのtextareaを編集可能にし、saveSendText()で週データ(DB.weeks[weekKey].sendText)に保存できるようにした。保存済みの内容は次回開いた時も優先表示される
+//  [AY-3] regenerateSendText()を新設。「🔄 自動生成し直す」ボタンで編集内容を破棄し、現在の献立から再度自動生成できる
+// V2.49.0:
+//  [AX-1] getDefaultRandomSettings()/getRandomSettings()/saveRandomSettings()を新設。曜日ごと（月火水金）のメイン主菜の必須・除外ラベルと有効/無効、副菜・サラダ自動選定の全体ON/OFFをlocalStorage(menuApp_randomSettings)で管理するようにした
+//  [AX-2] getDayLabelRules()を設定駆動に変更（曜日が無効の場合はラベル条件なしで自由抽選）。randomizeDays()・rerandomizeSideType()は副菜・サラダのsideEnable=falseの場合スキップするよう修正
+//  [AX-3] 管理画面に「🎲 ランダム生成設定」ページを新設。曜日ごとのラベルチップ選択・ON/OFF切替、副菜・サラダ自動選定ON/OFF、保存・初期設定リセットができるUIを実装
+//  [AX-4] ランダム生成設定をGist同期（push/sync/manualSync）およびJSONバックアップ・復元の対象に追加し、全端末・バックアップ間で共有されるようにした
+// V2.48.0:
+//  [AW-1] openGptGenerateOverlay()等を新設。料理編集ブロックに「🤖 GPT生成」ボタンを追加し、①使いたい材料（任意）を入力→固定書式のプロンプトを自動生成しコピー＆ChatGPTを開く→②GPTの回答（「料理名: 」「材料:」形式）を貼り付け画面にペースト→confirmGptGenerate()で解析し、開いていた料理欄（メニュー名・材料）にそのまま反映する一連の流れを実装
+// V2.47.0:
+//  [AV-1] 手配チェック画面に「💾 保存する」ボタンを追加（saveShopChecklist()を新設。各タップで自動保存済みだが明示的な確定操作として）
+//  [AV-2] 曜日ごとの料理編集ブロックの「📚 プリセット」ボタンの左に「🎲 ランダム」ボタンを追加し、そのままpickRandom()を呼べるようにした（従来はプリセット画面を開かないとランダムを使えなかった）
 // V2.46.0:
-//  [AU-1] buildSendText()冒頭の挨拶文（「いつもお世話になっております。」等）を削除し、曜日リストからそのまま始まるようにした
-//  [AU-2] 副菜・サラダの表記を「副菜（レトルト）」「サラダ（袋）」に変更し、レトルト・袋であることを明記した
-//  [AU-3] 各材料・副菜・サラダ行の末尾に手配状況（手配済み／在庫あり／在庫不明）を追記。renderSendTab()にweekKeyを渡し、getShopChecks()で取得するようにした
-//  [AU-4] 調理なしの日の表記を「本日は調理なし」から「調理なし」に変更
+//  [AU-1] 送信用テキストの冒頭挨拶文（いつもお世話に…／今週の献立と材料は…）を削除
+//  [AU-2] 副菜・サラダの表記を「副菜（レトルト）」「サラダ（袋）」に変更
+//  [AU-3] shopStatusText()を新設し、材料・副菜・サラダの各行に手配状況（[在庫不明]/[手配済み]/[在庫あり]）を追記
+//  [AU-4] 「本日は調理なし」を「調理なし」に変更
 // V2.45.0:
 //  [AT-1] 週画面の「印刷」タブの右隣に「📤 送信用」タブを新設。buildSendText()で曜日ごとのメニュー・材料を冒頭にヘルパーの方への挨拶文付きでテキスト化し、readonlyのtextareaに表示するようにした
 //  [AT-2] copySendText()を新設し、「📋 コピー」ボタンでテキスト全体をクリップボードにコピーできるようにした（Android等でclipboard API不可の場合はexecCommandへフォールバック）
@@ -535,7 +556,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.46.0';
+const APP_VERSION='V2.50.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1120,6 +1141,7 @@ function backupJSON(){
   const payload={version:BACKUP_VERSION,exportedAt:new Date().toISOString(),data:DB,
     ratings:getRatings(),myVotes:getMyVotes(),
     presetEdits:JSON.parse(localStorage.getItem('menuApp_preset_edits')||'{}'),
+    randomSettings:JSON.parse(localStorage.getItem('menuApp_randomSettings')||'null'),
     shopChecks};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -1150,6 +1172,7 @@ function onRestoreFileSelected(e){
       if(payload.ratings)localStorage.setItem('ratings_v2',JSON.stringify(payload.ratings));
       if(payload.myVotes)localStorage.setItem('my_votes',JSON.stringify(payload.myVotes));
       if(payload.presetEdits)localStorage.setItem('menuApp_preset_edits',JSON.stringify(payload.presetEdits));
+      if(payload.randomSettings)localStorage.setItem('menuApp_randomSettings',JSON.stringify(payload.randomSettings));
       if(payload.shopChecks)Object.entries(payload.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
       alert('復元が完了しました。画面を再読み込みします。');
       location.reload();
@@ -1213,6 +1236,71 @@ function goAdminEditWeek(k){
   go('admin-week');
 }
 
+// ===================== ランダム生成設定ページ（V2.49.0新設） =====================
+let awRandomSettingsDraft=null;
+function renderRandomSettings(){
+  awRandomSettingsDraft=JSON.parse(JSON.stringify(getRandomSettings()));
+  renderRandomSettingsContent();
+}
+function toggleRSLabel(day,field,label){
+  const ds=awRandomSettingsDraft[day];
+  if(!ds[field])ds[field]=[];
+  const idx=ds[field].indexOf(label);
+  if(idx>=0)ds[field].splice(idx,1);else ds[field].push(label);
+  renderRandomSettingsContent();
+}
+function renderRandomSettingsContent(){
+  const el=document.getElementById('random-settings-content');
+  if(!el||!awRandomSettingsDraft)return;
+  const chipRow=(d,field,label)=>{
+    const arr=awRandomSettingsDraft[d][field]||[];
+    const btns=ALL_LABELS.map(l=>`<button class="preset-cat-btn${arr.includes(l)?' active':''}" style="font-size:12px;padding:4px 10px" onclick="toggleRSLabel('${d}','${field}','${jsArg(l)}')">${esc(l)}</button>`).join('');
+    return `<div class="form-group"><label class="form-label">${label}</label><div style="display:flex;gap:6px;flex-wrap:wrap">${btns}</div></div>`;
+  };
+  const dayCard=(d)=>{
+    const ds=awRandomSettingsDraft[d];
+    let body='';
+    if(ds.enabled){
+      if(d==='金'){
+        body+=`<p style="font-size:12px;color:var(--gray);margin-bottom:8px">金曜は「肉野菜」「肉無し」を隔週で自動切替します（固定仕様のため変更不可）</p>`;
+        body+=chipRow(d,'mainExclude','除外ラベル');
+      }else{
+        body+=chipRow(d,'mainRequire','必須ラベル（メイン）');
+        body+=chipRow(d,'mainExclude','除外ラベル（メイン）');
+        if(d==='月')body+=chipRow(d,'subRequire','必須ラベル（サブ：父・兄用の2品目）');
+      }
+    }
+    return `<div class="admin-card" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">${d}曜日</h3>
+        <button class="sides-toggle-btn" style="border:1px solid var(--amber);border-radius:8px;padding:6px 14px${ds.enabled?';border-color:var(--amber);color:var(--amber)':''}" onclick="awRandomSettingsDraft['${d}'].enabled=!awRandomSettingsDraft['${d}'].enabled;renderRandomSettingsContent()">${ds.enabled?'ON':'OFF'}</button>
+      </div>
+      ${body}
+    </div>`;
+  };
+  let html='<p style="font-size:13px;color:var(--gray);margin-bottom:4px">曜日ごとの主菜ランダム選定条件（必須・除外ラベル）と、副菜・サラダの自動選定ON/OFFを設定できます。OFFにした曜日は条件なしで自由に抽選されます。</p>';
+  html+=`<div class="admin-card" style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">🍱 副菜・サラダの自動選定</h3>
+      <button class="sides-toggle-btn" style="border:1px solid var(--amber);border-radius:8px;padding:6px 14px${awRandomSettingsDraft.sideEnabled?';border-color:var(--amber);color:var(--amber)':''}" onclick="awRandomSettingsDraft.sideEnabled=!awRandomSettingsDraft.sideEnabled;renderRandomSettingsContent()">${awRandomSettingsDraft.sideEnabled?'ON':'OFF'}</button>
+    </div>
+    <p style="font-size:12px;color:var(--gray);margin-top:6px">OFFにすると、一括・当日ランダム選択や🎲再抽選ボタンで副菜・サラダが自動選定されなくなります（主菜のみ抽選）</p>
+  </div>`;
+  ['月','火','水','金'].forEach(d=>{html+=dayCard(d);});
+  html+=`<button class="btn-primary" style="width:100%;margin-top:16px" onclick="confirmSaveRandomSettings()">💾 保存する</button>
+  <button class="btn-secondary" style="width:100%;margin-top:8px" onclick="appConfirm('初期設定に戻しますか？（保存するボタンを押すまでは確定しません）',resetRandomSettings)">↺ 初期設定に戻す</button>`;
+  el.innerHTML=html;
+}
+function confirmSaveRandomSettings(){
+  saveRandomSettings(awRandomSettingsDraft);
+  showRatingToast('💾 ランダム生成設定を保存しました');
+}
+function resetRandomSettings(){
+  awRandomSettingsDraft=getDefaultRandomSettings();
+  renderRandomSettingsContent();
+  showRatingToast('初期設定に戻しました（保存するボタンで確定してください）');
+}
+
 // ===================== RENDER =====================
 function render(){
   const p=state.page;
@@ -1225,6 +1313,7 @@ function render(){
   else if(p==='past') renderPast();
   else if(p==='future') renderFuture();
   else if(p==='all-menus'){allMenusCat='すべて';renderAllMenus();}
+  else if(p==='random-settings') renderRandomSettings();
 }
 
 function getWeekLabel(k){
@@ -1507,18 +1596,19 @@ function renderShopTab(weekData,weekKey){
   html+=`<button class="btn-primary" style="margin-top:8px" onclick="goShopAdmin('${wk}')">🛒 手配チェックへ</button>`;
   return html;
 }
-// ===== 送信用タブ（V2.45.0新設／V2.46.0改修） =====
+// ===== 送信用タブ（V2.45.0新設） =====
 // ヘルパーの方へ曜日ごとのメニュー・材料をそのままコピー＆送信できるテキストを組み立てる
-// ★V2.46.0新設：手配状況（手配済み／在庫あり／在庫不明）の文言をshopChecksの状態値から算出する
-function sendStatusLabel(st){
-  if(st==='arranged')return '手配済み';
-  if(st==='stocked')return '在庫あり';
+// ★V2.46.0修正：冒頭挨拶を削除、副菜・サラダにレトルト/袋を表記、手配状況を追記、「本日は」を削除
+function shopStatusText(state){
+  if(state==='arranged')return '手配済み';
+  if(state==='stocked')return '在庫あり';
   return '在庫不明';
 }
-// ★V2.46.0修正：冒頭の挨拶文を廃止し、weekKeyを受け取ってshopChecks（手配状況）を各行に反映するよう変更
 function buildSendText(weekData,weekKey){
-  const lines=[];
   const shopChecks=weekKey?getShopChecks(weekKey):{};
+  const lines=[];
+  lines.push('⚠️ 調理後はコンロ（ガス）の元栓をしめてください');
+  lines.push('');
   DAYS.forEach(d=>{
     const day=weekData.menus[d];
     lines.push(`【${d}曜日】`);
@@ -1534,30 +1624,49 @@ function buildSendText(weekData,weekKey){
       (dish.ingredients||[]).forEach(ing=>{
         if(!ing.n||!ing.n.trim())return;
         const amt=ing.adj!=null?ing.adj:getIngAmount(ing,_p);
-        const st=sendStatusLabel(shopChecks[ing.n.trim()]);
+        const st=shopStatusText(shopChecks[ing.n.trim()]||null);
         lines.push(`　・${ing.n}　${amt}　[${st}]`);
       });
     });
     (day.sides||[]).forEach(s=>{
       if(!s.name||!s.name.trim())return;
-      // ★V2.46.0修正：副菜・サラダにレトルト／袋の表記を追加し、手配状況も付記する
       const typeLabel=s.type==='サラダ'?'サラダ（袋）':'副菜（レトルト）';
-      const st=sendStatusLabel(shopChecks[s.name]);
+      const st=shopStatusText(shopChecks[s.name]||null);
       lines.push(`◆${typeLabel}：${s.name}　[${st}]`);
     });
     lines.push('');
   });
   return lines.join('\n');
 }
+// ★V2.50.0修正：送信用テキストを編集・保存できるようにする（週データにsendTextとして保存し、次回開いた時は保存済みの内容を優先表示）
 function renderSendTab(weekData,weekKey){
   if(!weekData||!weekData.menus){
     return '<p style="padding:20px;color:var(--gray);text-align:center">献立が登録されていません</p>';
   }
-  const text=buildSendText(weekData,weekKey);
+  const text=weekData.sendText!=null?weekData.sendText:buildSendText(weekData,weekKey);
   return `<div style="padding:8px 0">
-    <textarea readonly id="send-text-area" style="width:100%;min-height:50vh;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:14px;line-height:1.8;resize:vertical;font-family:inherit;color:#333;background:#f9f9f9">${esc(text)}</textarea>
-    <button class="btn-primary" style="width:100%;margin-top:10px" onclick="copySendText()">📋 コピー</button>
+    <textarea id="send-text-area" style="width:100%;min-height:50vh;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:14px;line-height:1.8;resize:vertical;font-family:inherit;color:#333;background:#fff">${esc(text)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn-secondary" style="flex:1" onclick="regenerateSendText('${jsArg(weekKey)}')">🔄 自動生成し直す</button>
+      <button class="btn-primary" style="flex:1" onclick="saveSendText('${jsArg(weekKey)}')">💾 保存</button>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="copySendText()">📋 コピー</button>
   </div>`;
+}
+function saveSendText(weekKey){
+  const ta=document.getElementById('send-text-area');
+  if(!ta||!weekKey||!DB.weeks[weekKey])return;
+  DB.weeks[weekKey].sendText=ta.value;
+  saveData(DB);
+  showRatingToast('💾 送信用文を保存しました');
+}
+function regenerateSendText(weekKey){
+  if(!weekKey||!DB.weeks[weekKey])return;
+  appConfirm('編集内容を破棄して自動生成し直しますか？',()=>{
+    delete DB.weeks[weekKey].sendText;
+    saveData(DB);
+    renderWeekContent();
+  });
 }
 function copySendText(){
   const ta=document.getElementById('send-text-area');
@@ -1567,11 +1676,9 @@ function copySendText(){
     showRatingToast('📋 コピーしました');
   }).catch(()=>{
     try{
-      ta.removeAttribute('readonly');
       ta.focus();
       ta.setSelectionRange(0,ta.value.length);
       const ok=document.execCommand('copy');
-      ta.setAttribute('readonly','');
       showRatingToast(ok?'📋 コピーしました':'⚠️ コピーに失敗しました');
     }catch(e){showRatingToast('⚠️ コピーに失敗しました');}
   });
@@ -1820,7 +1927,7 @@ function renderAdminShopChecklist(){
   const total=weekData.shopping.reduce((a,c)=>a+c.items.length,0);
   const done=Object.values(savedChecks).filter(v=>v==='arranged'||v==='stocked').length;
   const pct=total>0?Math.round(done/total*100):0;
-  let html=`<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+  let html=`<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
     <button class="sides-toggle-btn" style="border:1px solid var(--amber);border-radius:8px;padding:6px 14px" onclick="renderAdminShopChecklist()">🔄 リロード</button>
   </div>
   <div style="margin-bottom:16px">
@@ -1847,7 +1954,15 @@ function renderAdminShopChecklist(){
       ${items}
     </div>`;
   });
+  // ★V2.47.0新設：手配チェックにも他の編集画面と同じ「保存する」ボタンを追加（各タップで自動保存済みだが、明示的な確定操作として）
+  html+=`<button class="btn-primary" style="width:100%;margin-top:12px" onclick="saveShopChecklist()">💾 保存する</button>`;
   document.getElementById('aw-shop-content').innerHTML=html;
+}
+function saveShopChecklist(){
+  const k=state.editingWeekKey;
+  if(!k)return;
+  saveShopChecks(k,getShopChecks(k));
+  showRatingToast('💾 手配チェックを保存しました');
 }
 function resetShopFromAdmin(){
   const k=state.editingWeekKey;
@@ -1952,7 +2067,11 @@ function renderDishEditBlock(dish,di){
   return `<div class="dish-edit-block">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <h4 style="margin:0">料理 ${di+1}</h4>
-      <button class="btn-preset-open" style="width:auto;padding:6px 12px;font-size:13px;margin:0" onclick="openPresetOverlay(${di})">📚 プリセット</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="sides-toggle-btn" style="border:1px solid var(--amber);border-radius:8px;padding:6px 12px;font-size:13px" onclick="pickRandom(${di})">🎲 ランダム</button>
+        <button class="btn-preset-open" style="width:auto;padding:6px 12px;font-size:13px;margin:0" onclick="openPresetOverlay(${di})">📚 プリセット</button>
+        <button style="background:#10a37f;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer" onclick="openGptGenerateOverlay(${di})">🤖 GPT生成</button>
+      </div>
     </div>
     <div class="form-group"><label class="form-label">対象者</label><select class="form-input" onchange="awDayState.days[awDayState.day].dishes[${di}].target=this.value;renderAdminDayContent()">${['父・兄（2人分）','母（1人分）','3人分'].map(v=>`<option value="${v}"${dish.target===v?' selected':''}>${v}</option>`).join('')}</select></div>
     <div class="form-group"><label class="form-label">メニュー名</label><input class="form-input" value="${esc(dish.menu)}" oninput="awDayState.days[awDayState.day].dishes[${di}].menu=this.value"></div>
@@ -2500,21 +2619,44 @@ function getRandomPreset(opts){
   delete picked._orig;
   return picked;
 }
-// 曜日ごとのラベルルール定義
+// ===================== ランダム生成設定（V2.49.0新設） =====================
+// 曜日ごとのメイン・副菜/サラダの選定条件をGUIで編集できるようlocalStorageで管理する
+function getDefaultRandomSettings(){
+  return {
+    '月':{enabled:true, mainRequire:['肉メイン'], mainExclude:['レトルト完成品'], subRequire:['魚','レトルト完成品']},
+    '火':{enabled:true, mainRequire:['海老'], mainExclude:['レトルト完成品']},
+    '水':{enabled:true, mainRequire:['魚'], mainExclude:['レトルト完成品']},
+    '金':{enabled:true, mainExclude:['魚','海老','レトルト完成品']},
+    sideEnabled:true
+  };
+}
+function getRandomSettings(){
+  try{
+    const raw=localStorage.getItem('menuApp_randomSettings');
+    if(!raw)return getDefaultRandomSettings();
+    return Object.assign({},getDefaultRandomSettings(),JSON.parse(raw));
+  }catch(e){return getDefaultRandomSettings();}
+}
+function saveRandomSettings(s){
+  localStorage.setItem('menuApp_randomSettings',JSON.stringify(s));
+  pushMenuToGist();
+}
+// 曜日ごとのラベルルール定義（ランダム生成設定を反映）
 // 各エントリ: {requireLabels:[], excludeLabels:[], ingKeyword:''}
 function getDayLabelRules(d, weekEpoch){
-  // 金曜日は肉野菜か肉無しをランダムで選ぶ
-  const friLabel = weekEpoch%2===0 ? '肉野菜' : '肉無し';
-  const rules = {
-    '月': [
-      {requireLabels:['肉メイン'], excludeLabels:['レトルト完成品']},
-      {requireLabels:['魚','レトルト完成品']}
-    ],
-    '火': [{requireLabels:['海老'], excludeLabels:['レトルト完成品']}],
-    '水': [{requireLabels:['魚'], excludeLabels:['レトルト完成品']}],
-    '金': [{requireLabels:[friLabel], excludeLabels:['魚','海老','レトルト完成品']}],
-  };
-  return rules[d]||null;
+  const settings=getRandomSettings();
+  const ds=settings[d];
+  if(!ds||!ds.enabled)return null; // 無効な曜日はラベル条件なし（自由選択）
+  if(d==='金'){
+    // 金曜日は肉野菜か肉無しをランダムで選ぶ（隔週切替は固定仕様）
+    const friLabel = weekEpoch%2===0 ? '肉野菜' : '肉無し';
+    return [{requireLabels:[friLabel], excludeLabels:ds.mainExclude||[]}];
+  }
+  const rules=[{requireLabels:ds.mainRequire||[], excludeLabels:ds.mainExclude||[]}];
+  if(d==='月'&&ds.subRequire&&ds.subRequire.length){
+    rules.push({requireLabels:ds.subRequire});
+  }
+  return rules;
 }
 function pickRandom(dishIdx){
   const d=awDayState.day;
@@ -2567,6 +2709,115 @@ function pickRandom(dishIdx){
     if(dish)dish.target='3人分';
   }
   closePresetOverlay();
+}
+// ===================== GPT新規献立生成（V2.48.0新設） =====================
+let awGptGenerateDishIdx=null;
+let awGptGenerateStep=1;
+function openGptGenerateOverlay(di){
+  awGptGenerateDishIdx=di;
+  awGptGenerateStep=1;
+  let ov=document.getElementById('gpt-generate-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='gpt-generate-overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:8000;background:#fff;display:flex;flex-direction:column;overflow:hidden';
+    document.body.appendChild(ov);
+  }
+  renderGptGenerateOverlay();
+}
+function closeGptGenerateOverlay(){
+  const ov=document.getElementById('gpt-generate-overlay');
+  if(ov)ov.remove();
+  awGptGenerateDishIdx=null;
+}
+function renderGptGenerateOverlay(){
+  const ov=document.getElementById('gpt-generate-overlay');
+  if(!ov)return;
+  if(awGptGenerateStep===1){
+    ov.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
+        <button onclick="closeGptGenerateOverlay()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--navy);padding:0 4px">←</button>
+        <span style="font-size:17px;font-weight:800;color:var(--navy);flex:1">🤖 献立をGPTで新規生成</span>
+      </div>
+      <div style="padding:16px;overflow-y:auto;flex:1">
+        <div class="form-group">
+          <label class="form-label">使いたい材料（任意・複数可。空欄でもOK）</label>
+          <textarea id="gpt-gen-ing-input" class="form-input" style="min-height:100px;resize:vertical" placeholder="例：鶏むね肉、キャベツ"></textarea>
+        </div>
+        <div style="background:#e8f8f2;border:2px solid #10a37f;border-radius:10px;padding:12px;margin-top:8px;font-size:13px;color:#0a7a5e;line-height:1.8;font-weight:700">
+          次の手順で進めてください<br>
+          ① 「プロンプトをコピーしてGPTを開く」をタップ<br>
+          ② ChatGPTの入力欄に貼り付けて送信<br>
+          ③ 生成された回答をコピーし、この画面に戻って貼り付け
+        </div>
+        <button onclick="startGptGenerate()" style="width:100%;margin-top:16px;background:#10a37f;color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">📋 プロンプトをコピーしてGPTを開く</button>
+        <button onclick="awGptGenerateStep=2;renderGptGenerateOverlay()" class="btn-secondary" style="width:100%;margin-top:10px">次へ（貼り付け画面へ）</button>
+      </div>`;
+  }else{
+    ov.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
+        <button onclick="awGptGenerateStep=1;renderGptGenerateOverlay()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--navy);padding:0 4px">←</button>
+        <span style="font-size:17px;font-weight:800;color:var(--navy);flex:1">📥 生成結果を貼り付け</span>
+      </div>
+      <div style="padding:16px;overflow-y:auto;flex:1">
+        <div class="form-group">
+          <label class="form-label">GPTの回答を貼り付けてください</label>
+          <textarea id="gpt-gen-paste-input" class="form-input" style="min-height:220px;resize:vertical" placeholder="料理名: ...&#10;材料:&#10;材料名:分量&#10;..."></textarea>
+        </div>
+        <button onclick="confirmGptGenerate()" style="width:100%;margin-top:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">この内容で登録する</button>
+      </div>`;
+  }
+}
+async function startGptGenerate(){
+  const ingInput=(document.getElementById('gpt-gen-ing-input')?.value||'').trim();
+  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量\n材料名:分量`;
+  let copied=false;
+  try{
+    await navigator.clipboard.writeText(prompt);
+    copied=true;
+  }catch(e){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=prompt;
+      ta.style.position='fixed';ta.style.left='-9999px';
+      document.body.appendChild(ta);
+      ta.focus();ta.select();
+      copied=document.execCommand('copy');
+      document.body.removeChild(ta);
+    }catch(e2){}
+  }
+  window.open('https://chatgpt.com/','_blank','noopener,noreferrer');
+  if(!copied)showRatingToast('⚠️ 自動コピー失敗。手動でコピーしてください');
+  awGptGenerateStep=2;
+  renderGptGenerateOverlay();
+}
+function confirmGptGenerate(){
+  const raw=(document.getElementById('gpt-gen-paste-input')?.value||'').trim();
+  if(!raw){showRatingToast('貼り付け内容が空です');return;}
+  const menuMatch=raw.match(/料理名[:：]\s*(.+)/);
+  if(!menuMatch){showRatingToast('⚠️ 料理名が見つかりません。書式を確認してください');return;}
+  const menu=menuMatch[1].trim();
+  const ingredients=[];
+  const lines=raw.split('\n');
+  let inIngSection=false;
+  lines.forEach(line=>{
+    const t=line.trim();
+    if(!t)return;
+    if(/^材料[:：]?$/.test(t)){inIngSection=true;return;}
+    if(/^料理名/.test(t)){inIngSection=false;return;}
+    if(!inIngSection)return;
+    const m=t.match(/^(.+?)[:：]\s*(.+)$/);
+    if(m)ingredients.push({n:m[1].trim(),a:m[2].trim()});
+  });
+  if(ingredients.length===0){showRatingToast('⚠️ 材料が見つかりません。書式を確認してください');return;}
+  const di=awGptGenerateDishIdx;
+  const d=awDayState.day;
+  if(di==null||!awDayState.days[d]||!awDayState.days[d].dishes[di]){showRatingToast('エラー：登録先が見つかりません');closeGptGenerateOverlay();return;}
+  awDayState.days[d].dishes[di].menu=menu;
+  awDayState.days[d].dishes[di].ingredients=ingredients;
+  closeGptGenerateOverlay();
+  renderAdminDayContent();
+  showRatingToast('✅ 献立を登録しました');
 }
 function randomizeWeek(){randomizeDays(['月','火','水','金']);}
 // ★V2.42.0新設：一括ランダム選択は誤タップ防止のため実行前に確認する
@@ -2774,6 +3025,8 @@ function randomizeDays(cookDays){
       }
     });
     if(newDishes.length)awDayState.days[d].dishes=newDishes;
+    // ★V2.49.0修正：ランダム生成設定で副菜・サラダの自動選定がOFFの場合は既存の内容を残してスキップする
+    if(!getRandomSettings().sideEnabled){return;}
     const isCurry=newDishes.some(dish=>dish.menu&&dish.menu.includes('カレー'));
     awDayState.days[d].sides=[];
     if(isCurry){
@@ -2821,6 +3074,7 @@ const SIDE_CAT_MAP={
 // ★V2.12.0新設：主菜はそのままに、その日の副菜・サラダだけを再抽選する
 // ★V2.18.0修正：副菜・サラダを別々のボタンで再抽選できるよう type 別に分割
 function rerandomizeSideType(type,d){
+  if(!getRandomSettings().sideEnabled){showRatingToast('副菜・サラダの自動選定はOFFになっています（ランダム生成設定で変更できます）');return;}
   d=d||awDayState.day;
   if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
   const weekStart=document.getElementById('aw-start-date').value;
@@ -3508,6 +3762,10 @@ async function syncFromGist(){
     if(raw.shopChecks){
       Object.entries(raw.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
     }
+    // ★V2.49.0新設：ランダム生成設定も全端末へ反映する
+    if(raw.randomSettings){
+      localStorage.setItem('menuApp_randomSettings',JSON.stringify(raw.randomSettings));
+    }
   }catch(e){console.warn('Gist sync failed',e);}
 }
 async function manualSync(){
@@ -3530,6 +3788,7 @@ async function manualSync(){
     if(raw.shopChecks){
       Object.entries(raw.shopChecks).forEach(([k,v])=>localStorage.setItem('shop_'+k,JSON.stringify(v)));
     }
+    if(raw.randomSettings){localStorage.setItem('menuApp_randomSettings',JSON.stringify(raw.randomSettings));}
     const ts=raw.menuUpdatedAt||raw.updatedAt||'';
     if(ts){localStorage.setItem('menuApp_localUpdatedAt',ts);localStorage.setItem('menuApp_lastSyncedMenuTs',ts);}
     DB=loadData();
@@ -3593,7 +3852,8 @@ async function pushMenuToGist(notify){
     menuUpdatedAt:now,
     menuApp_v4:db,
     shopChecks,
-    presetEdits:JSON.parse(localStorage.getItem('menuApp_preset_edits')||'{}')
+    presetEdits:JSON.parse(localStorage.getItem('menuApp_preset_edits')||'{}'),
+    randomSettings:JSON.parse(localStorage.getItem('menuApp_randomSettings')||'null')
   },notify);
   if(ok)localStorage.setItem('menuApp_lastSyncedMenuTs',now);
   return ok;
