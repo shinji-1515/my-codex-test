@@ -2813,7 +2813,8 @@ function confirmGptGenerate(){
     if(/^料理名/.test(t)){inIngSection=false;return;}
     if(!inIngSection)return;
     const m=t.match(/^(.+?)[:：]\s*(.+)$/);
-    if(m)ingredients.push({n:m[1].trim(),a:m[2].trim()});
+    // ★GPT生成分の材料は「1人前」表記のためscaleAmountでの人数倍計算を妨げないよう「（1人前）」等の注記を除去して保存する
+    if(m)ingredients.push({n:m[1].trim(),a:m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim()});
   });
   if(ingredients.length===0){showRatingToast('⚠️ 材料が見つかりません。書式を確認してください');return;}
   const di=awGptGenerateDishIdx;
