@@ -258,7 +258,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 
 <!-- TOP -->
 <div id="screen-top" class="screen">
-  <div class="header"><h1>🍽️ 夕食献立管理</h1><button class="back-btn no-print" onclick="manualSync()" title="最新の献立に同期">🔄</button><button class="back-btn no-print" id="role-lock-btn" onclick="handleRoleButtonClick()" title="評価ロック">🔒</button><button class="back-btn no-print" onclick="goAdmin()" title="管理">⚙️</button></div>
+  <div class="header"><h1>🍽️ 夕食献立管理<span id="top-app-version" style="display:block;font-size:10px;font-weight:400;color:var(--gray);margin-top:2px"></span></h1><button class="back-btn no-print" onclick="manualSync()" title="最新の献立に同期">🔄</button><button class="back-btn no-print" id="role-lock-btn" onclick="handleRoleButtonClick()" title="評価ロック">🔒</button><button class="back-btn no-print" onclick="goAdmin()" title="管理">⚙️</button></div>
   <div class="content no-pad-bottom" id="top-content"></div>
 </div>
 
@@ -1338,6 +1338,8 @@ function getLatestWeekKey(){
 }
 
 function renderTop(){
+  const verEl=document.getElementById('top-app-version');
+  if(verEl)verEl.textContent=APP_VERSION;
   const keys=Object.keys(DB.weeks).sort((a,b)=>a<b?-1:1);
   const today=new Date();today.setHours(0,0,0,0);
   let currentKey=null,futureKeys=[],pastKeys=[];
