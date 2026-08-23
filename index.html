@@ -411,7 +411,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.53.0（2026-07-06 GPT献立生成を1人前・調味料適量指定に統一、貼り付け画面に手動リンクを追加）
+// 夕食献立管理アプリ V2.54.0（2026-08-23 トップにバージョンバッジ表示、GPT材料の人数倍計算バグ修正）
 // 変更履歴（Changelog）
 // V2.53.0:
 //  [AZ-1] startGptGenerate()のプロンプトに「材料の分量は必ず『1人前』の量で記載してください」「調味料の分量は必ず『適量』としてください」を追加し、出力例も「分量（1人前）」「調味料名:適量」に変更。GPT生成の材料量が常に1人前基準、調味料は適量指定になるようにした
@@ -559,7 +559,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.53.0';
+const APP_VERSION='V2.54.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
