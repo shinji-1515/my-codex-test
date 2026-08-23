@@ -411,7 +411,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.54.0（2026-08-23 トップにバージョンバッジ表示、GPT材料の人数倍計算バグ修正）
+// 夕食献立管理アプリ V2.55.0（2026-08-23 GPT生成材料をa1/a2/a3形式で保存し編集画面の人数倍表示を修正）
 // 変更履歴（Changelog）
 // V2.53.0:
 //  [AZ-1] startGptGenerate()のプロンプトに「材料の分量は必ず『1人前』の量で記載してください」「調味料の分量は必ず『適量』としてください」を追加し、出力例も「分量（1人前）」「調味料名:適量」に変更。GPT生成の材料量が常に1人前基準、調味料は適量指定になるようにした
@@ -559,7 +559,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.54.0';
+const APP_VERSION='V2.55.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2813,8 +2813,12 @@ function confirmGptGenerate(){
     if(/^料理名/.test(t)){inIngSection=false;return;}
     if(!inIngSection)return;
     const m=t.match(/^(.+?)[:：]\s*(.+)$/);
-    // ★GPT生成分の材料は「1人前」表記のためscaleAmountでの人数倍計算を妨げないよう「（1人前）」等の注記を除去して保存する
-    if(m)ingredients.push({n:m[1].trim(),a:m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim()});
+    if(m){
+      // ★GPT生成分の材料は「1人前」量で返るため、「（1人前）」等の注記を除去したうえで
+      // プリセットと同じa1/a2/a3形式（1人分・2人分・3人分）で保存し、編集画面でも正しい人数倍を表示させる
+      const a1=m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim();
+      ingredients.push({n:m[1].trim(),a1,a2:scaleAmount(a1,2),a3:scaleAmount(a1,3)});
+    }
   });
   if(ingredients.length===0){showRatingToast('⚠️ 材料が見つかりません。書式を確認してください');return;}
   const di=awGptGenerateDishIdx;
