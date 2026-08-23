@@ -411,8 +411,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.50.0（2026-07-06 送信用文にガス元栓注記を追加・編集保存に対応）
+// 夕食献立管理アプリ V2.53.0（2026-07-06 GPT献立生成を1人前・調味料適量指定に統一、貼り付け画面に手動リンクを追加）
 // 変更履歴（Changelog）
+// V2.53.0:
+//  [AZ-1] startGptGenerate()のプロンプトに「材料の分量は必ず『1人前』の量で記載してください」「調味料の分量は必ず『適量』としてください」を追加し、出力例も「分量（1人前）」「調味料名:適量」に変更。GPT生成の材料量が常に1人前基準、調味料は適量指定になるようにした
+//  [BB-1] 貼り付け画面（ステップ2）に「🔗 ChatGPTを開く」ボタンを追加。誤ってタブを閉じた場合やもう一度回答をコピーし直したい場合に、最初からやり直さずChatGPTを開き直せるようにした
 // V2.50.0:
 //  [AY-1] buildSendText()の冒頭に「⚠️ 調理後はコンロ（ガス）の元栓をしめてください」を追加
 //  [AY-2] 送信用テキストのtextareaを編集可能にし、saveSendText()で週データ(DB.weeks[weekKey].sendText)に保存できるようにした。保存済みの内容は次回開いた時も優先表示される
@@ -556,7 +559,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.50.0';
+const APP_VERSION='V2.53.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2760,6 +2763,7 @@ function renderGptGenerateOverlay(){
         <span style="font-size:17px;font-weight:800;color:var(--navy);flex:1">📥 生成結果を貼り付け</span>
       </div>
       <div style="padding:16px;overflow-y:auto;flex:1">
+        <button onclick="window.open('https://chatgpt.com/','_blank','noopener,noreferrer')" style="width:100%;background:#10a37f;color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px">🔗 ChatGPTを開く</button>
         <div class="form-group">
           <label class="form-label">GPTの回答を貼り付けてください</label>
           <textarea id="gpt-gen-paste-input" class="form-input" style="min-height:220px;resize:vertical" placeholder="料理名: ...&#10;材料:&#10;材料名:分量&#10;..."></textarea>
@@ -2770,7 +2774,7 @@ function renderGptGenerateOverlay(){
 }
 async function startGptGenerate(){
   const ingInput=(document.getElementById('gpt-gen-ing-input')?.value||'').trim();
-  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量\n材料名:分量`;
+  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
   let copied=false;
   try{
     await navigator.clipboard.writeText(prompt);
