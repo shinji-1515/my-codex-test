@@ -411,7 +411,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.55.0（2026-08-23 GPT生成材料をa1/a2/a3形式で保存し編集画面の人数倍表示を修正）
+// 夕食献立管理アプリ V2.56.0（2026-08-23 編集・買い物リスト画面で管理者ログイン済みなら再ログインを求めない不具合を修正）
 // 変更履歴（Changelog）
 // V2.53.0:
 //  [AZ-1] startGptGenerate()のプロンプトに「材料の分量は必ず『1人前』の量で記載してください」「調味料の分量は必ず『適量』としてください」を追加し、出力例も「分量（1人前）」「調味料名:適量」に変更。GPT生成の材料量が常に1人前基準、調味料は適量指定になるようにした
@@ -559,7 +559,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.55.0';
+const APP_VERSION='V2.56.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1225,7 +1225,7 @@ function goAdminNewWeek(){
 // ★V2.39.0新設：来週以降の献立ページから直接「新しい週を追加」できるようにする（パスワード保護は既存のgoEditWeekと同様に維持）
 function goAddFutureMenu(){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
-  if(pwEnabled){
+  if(pwEnabled&&!(adminUnlocked||getRole()==='admin')){
     state.pendingEditWeekKey='__NEW__';
     state.pendingEditDay=null;
     go('admin-login');
@@ -1517,7 +1517,7 @@ function renderMenuTab(weekData){
 
 function goEditWeek(weekKey,day){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
-  if(pwEnabled){
+  if(pwEnabled&&!(adminUnlocked||getRole()==='admin')){
     state.pendingEditWeekKey=weekKey;
     state.pendingEditDay=day;
     go('admin-login');
@@ -1690,7 +1690,7 @@ function copySendText(){
 }
 function goShopAdmin(weekKey){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
-  if(pwEnabled){state.pendingEditWeekKey=weekKey;state.pendingEditDay=null;go('admin-login');}
+  if(pwEnabled&&!(adminUnlocked||getRole()==='admin')){state.pendingEditWeekKey=weekKey;state.pendingEditDay=null;go('admin-login');}
   // ★S-2修正：パスワード無効時も管理者役割を付与（Web保存の権限判定を通すため）
   else{adminUnlocked=true;setRole('admin');state.editingWeekKey=weekKey;go('admin-week');setTimeout(()=>{showAdminShopTab();},50);}
 }
