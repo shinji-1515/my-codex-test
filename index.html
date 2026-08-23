@@ -2813,8 +2813,12 @@ function confirmGptGenerate(){
     if(/^料理名/.test(t)){inIngSection=false;return;}
     if(!inIngSection)return;
     const m=t.match(/^(.+?)[:：]\s*(.+)$/);
-    // ★GPT生成分の材料は「1人前」表記のためscaleAmountでの人数倍計算を妨げないよう「（1人前）」等の注記を除去して保存する
-    if(m)ingredients.push({n:m[1].trim(),a:m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim()});
+    if(m){
+      // ★GPT生成分の材料は「1人前」量で返るため、「（1人前）」等の注記を除去したうえで
+      // プリセットと同じa1/a2/a3形式（1人分・2人分・3人分）で保存し、編集画面でも正しい人数倍を表示させる
+      const a1=m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim();
+      ingredients.push({n:m[1].trim(),a1,a2:scaleAmount(a1,2),a3:scaleAmount(a1,3)});
+    }
   });
   if(ingredients.length===0){showRatingToast('⚠️ 材料が見つかりません。書式を確認してください');return;}
   const di=awGptGenerateDishIdx;
