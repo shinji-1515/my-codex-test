@@ -412,8 +412,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.54.0（2026-07-06 運用改善：副菜・サラダ自動選定廃止、GPT分量控えめ化、今週買える魚入力、ランダム多様性向上）
+// 夕食献立管理アプリ V2.55.0（2026-07-06 バージョン表示をトップ画面最下部に移動）
 // 変更履歴（Changelog）
+// V2.55.0:
+//  [BD-1] バージョン表示（バージョン: ${APP_VERSION}）を❓ヘルプモーダル内から、トップ画面最下部（❓ヘルプボタンの直下）に移動。スマホでもヘルプを開かずに常時確認できるようにした
 // V2.54.0:
 //  [BC-1] 副菜・サラダの自動選定を完全廃止。randomizeDays()から副菜・サラダ生成コードを削除し、一括/当日ランダム選択では主菜(dishes)のみを更新するようにした。rerandomizeSideType()とその呼び出しボタン（🎲副菜/🎲サラダ再抽選）、ランダム生成設定ページの「副菜・サラダの自動選定」ON/OFF、未使用となったSIDE_CAT_MAPも削除。「＋副菜を追加」「＋サラダを追加」による手動登録・編集・削除、既存の保存済みデータの表示は変更なし
 //  [BC-2] startGptGenerate()のプロンプトに「一般的なレシピサイトの分量は多すぎることが多いため、控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度）」を追加し、ChatGPT生成の分量が過大になりがちな傾向を抑えるようにした
@@ -565,7 +567,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.54.0';
+const APP_VERSION='V2.55.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1380,7 +1382,8 @@ function renderTop(){
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='large'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('large');renderTop()">大</button>
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='xlarge'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('xlarge');renderTop()">特大</button>
   </div>
-  <button class="btn-secondary" style="width:100%;margin-bottom:16px" onclick="maybeShowWelcome()">❓ ヘルプ</button>`;
+  <button class="btn-secondary" style="width:100%;margin-bottom:16px" onclick="maybeShowWelcome()">❓ ヘルプ</button>
+  <div style="text-align:center;font-size:11px;color:var(--gray)">バージョン: ${APP_VERSION}</div>`;
 
   const bookmarkNote=`<div style="text-align:center;padding:8px 14px;font-size:13px;color:var(--gray);font-weight:600">🔖 本ページをブックマークしてください。</div>`;
   document.getElementById('top-content').innerHTML=bookmarkNote+latestHtml+navGrid;
@@ -3545,7 +3548,6 @@ function maybeShowWelcome(){
       👍 いいね／👎 うーんで感想を記録できます。<br>
       ※評価ができるのは父のみです。
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--gray);margin-bottom:12px">バージョン: ${APP_VERSION}</div>
     <button onclick="document.getElementById('app-modal-overlay').remove()" style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">閉じる</button>
   </div>`;
   document.body.appendChild(ov);
