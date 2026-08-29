@@ -258,7 +258,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 
 <!-- TOP -->
 <div id="screen-top" class="screen">
-  <div class="header"><h1>🍽️ 夕食献立管理</h1><button class="back-btn no-print" onclick="manualSync()" title="最新の献立に同期">🔄</button><button class="back-btn no-print" id="role-lock-btn" onclick="handleRoleButtonClick()" title="評価ロック">🔒</button><button class="back-btn no-print" onclick="goAdmin()" title="管理">⚙️</button></div>
+  <div class="header"><h1>🍽️ 夕食献立管理<span id="top-app-version" style="display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,0.22);border-radius:10px;padding:2px 8px;margin-left:8px;vertical-align:middle"></span></h1><button class="back-btn no-print" onclick="manualSync()" title="最新の献立に同期">🔄</button><button class="back-btn no-print" id="role-lock-btn" onclick="handleRoleButtonClick()" title="評価ロック">🔒</button><button class="back-btn no-print" onclick="goAdmin()" title="管理">⚙️</button></div>
   <div class="content no-pad-bottom" id="top-content"></div>
 </div>
 
@@ -412,11 +412,21 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.55.0（2026-07-06 バージョン表示をトップ画面最下部に移動）
+// 夕食献立管理アプリ V2.57.0（2026-08-23 mainブランチの修正と運用改善をマージ統合）
 // 変更履歴（Changelog）
-// V2.55.0:
-//  [BD-1] バージョン表示（バージョン: ${APP_VERSION}）を❓ヘルプモーダル内から、トップ画面最下部（❓ヘルプボタンの直下）に移動。スマホでもヘルプを開かずに常時確認できるようにした
-// V2.54.0:
+// V2.57.0:
+//  [BE-1] main側で個別に進んでいた修正（V2.54.0〜V2.56.0：バージョン表示のバッジ化、GPT生成材料の1人前表記除去・a1/a2/a3形式化による人数倍計算修正、管理者ログイン済みなら再ログイン不要にする修正）と、本ブランチの運用改善（副菜・サラダ自動選定廃止、GPT分量控えめ化、今週買える魚入力、ランダム多様性向上）をマージ統合
+//  [BE-2] マージに伴い、本ブランチで追加していた「トップ画面最下部のバージョン表示」はmain側で先に実装されていたヘッダーバッジ表示と重複するため削除（バッジ表示を採用）
+//  [BE-3] GPT生成プロンプトの「控えめな分量」指示は維持しつつ、出力例の表記をmain側のconfirmGptGenerate()正規表現（末尾が「（1人前）」のみを除去）と整合するよう「分量（1人前）」に統一（「・控えめ」を末尾に含めると人数倍計算の除去処理にマッチしなくなるため）
+// V2.56.0:
+//  [BF-1] 編集・買い物リスト画面で管理者ログイン済みでも毎回パスワードを要求してしまう不具合を修正
+// V2.55.0（main側）:
+//  [BF-2] GPT生成材料をa1/a2/a3形式で保存するよう変更し、編集画面で対象人数に応じた正しい分量が表示・編集されるようにした
+// V2.54.0（main側）:
+//  [BF-3] GPT生成レシピの材料に付く「（1人前）」表記がscaleAmountの単位判定を妨げ2人分・3人分表示で倍量計算されない不具合を修正。トップ画面のバージョン表示をバッジ風に変更
+// V2.55.0（本ブランチ）:
+//  [BD-1] （V2.57.0でヘッダーバッジ表示に一本化。詳細はBE-2参照）
+// V2.54.0（本ブランチ）:
 //  [BC-1] 副菜・サラダの自動選定を完全廃止。randomizeDays()から副菜・サラダ生成コードを削除し、一括/当日ランダム選択では主菜(dishes)のみを更新するようにした。rerandomizeSideType()とその呼び出しボタン（🎲副菜/🎲サラダ再抽選）、ランダム生成設定ページの「副菜・サラダの自動選定」ON/OFF、未使用となったSIDE_CAT_MAPも削除。「＋副菜を追加」「＋サラダを追加」による手動登録・編集・削除、既存の保存済みデータの表示は変更なし
 //  [BC-2] startGptGenerate()のプロンプトに「一般的なレシピサイトの分量は多すぎることが多いため、控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度）」を追加し、ChatGPT生成の分量が過大になりがちな傾向を抑えるようにした
 //  [BC-3] 週編集画面に「今週買える魚（任意・カンマ区切り）」の入力欄を新設。DB.weeks[weekKey].availableFishとして保存・復元し、水曜（魚必須）・月曜サブ（魚必須）のランダム抽選時に入力した魚名でメニューを絞り込めるようにした（未入力時は従来通り全メニューから抽選）
@@ -567,7 +577,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.55.0';
+const APP_VERSION='V2.57.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -623,14 +633,14 @@ const PRESET_DISHES=[
 {menu:'鶏もも肉のねぎ塩炒め',labels:['肉野菜','鶏','和食','炒め物','残り野菜活用'],ingredients:[{n:'鶏もも肉',a1:'90g',a2:'180g',a3:'270g'},{n:'長ねぎ',a1:'1/2本',a2:'1本',a3:'1本半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'鶏がらスープの素',a1:'適量',a2:'適量',a3:'適量'},{n:'塩こしょう',a1:'適量',a2:'適量',a3:'適量'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'鶏むね肉とトマトのバジル炒め',labels:['肉野菜','鶏','洋食','炒め物','残り野菜活用'],ingredients:[{n:'鶏むね肉',a1:'90g',a2:'180g',a3:'270g'},{n:'トマト',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'乾燥バジル',a1:'適量',a2:'適量',a3:'適量'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'牛肉と玉ねぎのすき焼き風煮',labels:['肉メイン','牛','和食','煮物'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'しらたき',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'牛肉とピーマンのチンジャオロース風',labels:['肉野菜','牛','中華','炒め物'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ水煮',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'オイスターソース',a1:'適量',a2:'適量',a3:'適量'},{n:'片栗粉',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'牛肉と大根の甘辛煮',labels:['肉野菜','牛','和食','煮物','甘辛'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'大根',a1:'1/6本',a2:'1/3本',a3:'1/2本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉とピーマンのチンジャオロース風',labels:['肉野菜','牛','中華','炒め物','肉メイン'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ水煮',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'オイスターソース',a1:'適量',a2:'適量',a3:'適量'},{n:'片栗粉',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉と大根の甘辛煮',labels:['肉野菜','牛','和食','煮物','甘辛','肉メイン'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'大根',a1:'1/6本',a2:'1/3本',a3:'1/2本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'牛肉のガーリックステーキ',labels:['肉メイン','牛','洋食','焼き物','ガーリック'],ingredients:[{n:'牛ステーキ肉',a1:'90g',a2:'180g',a3:'270g'},{n:'にんにく',a1:'適量',a2:'適量',a3:'適量'},{n:'バター',a1:'適量',a2:'適量',a3:'適量'},{n:'塩こしょう',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'牛肉と白菜のうま煮',labels:['肉野菜','牛','中華','煮物'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'オイスターソース',a1:'適量',a2:'適量',a3:'適量'},{n:'片栗粉',a1:'適量',a2:'適量',a3:'適量'},{n:'鶏がらスープの素',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉と白菜のうま煮',labels:['肉野菜','牛','中華','煮物','肉メイン'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'オイスターソース',a1:'適量',a2:'適量',a3:'適量'},{n:'片栗粉',a1:'適量',a2:'適量',a3:'適量'},{n:'鶏がらスープの素',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'牛肉と根菜の甘酢炒め',labels:['肉野菜','牛','和食','炒め物','甘酢'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'れんこん',a1:'1/4節',a2:'1/2節',a3:'3/4節'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'酢',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'牛肉のトマト煮込み',labels:['肉メイン','牛','洋食','煮物','トマト','残り野菜活用'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'ホールトマト缶',a1:'1缶（400g）',a2:'1缶（400g）',a3:'1缶（400g）'},{n:'にんにく',a1:'適量',a2:'適量',a3:'適量'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'牛肉とごぼうのしぐれ煮',labels:['肉野菜','牛','和食','煮物','甘辛'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ごぼう',a1:'1/3本',a2:'2/3本',a3:'1本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'牛肉ともやしの黒酢炒め',labels:['肉野菜','牛','中華','炒め物','黒酢'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'もやし',a1:'1/2袋',a2:'1袋',a3:'1袋半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'黒酢',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉のトマト煮込み',labels:['牛','洋食','煮物','トマト','残り野菜活用'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'ホールトマト缶',a1:'1缶（400g）',a2:'1缶（400g）',a3:'1缶（400g）'},{n:'にんにく',a1:'適量',a2:'適量',a3:'適量'},{n:'コンソメ',a1:'適量',a2:'適量',a3:'適量'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉とごぼうのしぐれ煮',labels:['肉野菜','牛','和食','煮物','甘辛','肉メイン'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ごぼう',a1:'1/3本',a2:'2/3本',a3:'1本'},{n:'しょうが（チューブ）',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'},{n:'みりん',a1:'適量',a2:'適量',a3:'適量'}]},
+{menu:'牛肉ともやしの黒酢炒め',labels:['肉野菜','牛','中華','炒め物','黒酢','肉メイン'],ingredients:[{n:'牛薄切り肉',a1:'90g',a2:'180g',a3:'270g'},{n:'もやし',a1:'1/2袋',a2:'1袋',a3:'1袋半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'黒酢',a1:'適量',a2:'適量',a3:'適量'},{n:'醤油',a1:'適量',a2:'適量',a3:'適量'},{n:'砂糖',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'さばの味噌煮レトルト',labels:['肉無し','魚','和食','煮物','レトルト完成品','レトルト調味料'],ingredients:[{n:'さばの味噌煮（レトルト）',a1:'1/3袋',a2:'2/3袋',a3:'1袋'}]},
 {menu:'さばの水煮レトルト',labels:['肉無し','魚','和食','煮物','レトルト完成品'],ingredients:[{n:'さばの水煮（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'}]},
 {menu:'さばの醤油煮レトルト',labels:['肉無し','魚','和食','煮物','レトルト完成品'],ingredients:[{n:'さばの醤油煮（レトルト）',a1:'1袋',a2:'2袋',a3:'2〜3袋'}]},
@@ -731,7 +741,7 @@ const PRESET_DISHES=[
 {menu:'Cook Do 麻婆豆腐用',labels:['肉メイン','ひき肉','豚','豆腐','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 麻婆豆腐用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'絹ごし豆腐',a1:'1/3丁（100g）',a2:'2/3丁（200g）',a3:'1丁（300g）'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'豚ひき肉',a1:'90g',a2:'180g',a3:'270g'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'Cook Do 回鍋肉用',labels:['肉野菜','豚','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do 回鍋肉用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'キャベツ',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'豚バラ肉（または豚こま肉）',a1:'90g程度',a2:'180g程度',a3:'270g程度'}]},
 {menu:'Cook Do 八宝菜用',labels:['肉無し','卵','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 八宝菜用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'白菜',a1:'1/8個',a2:'1/4個',a3:'1/3個'},{n:'にんじん',a1:'1/4本',a2:'1/2本',a3:'3/4本'},{n:'うずら卵（水煮缶）',a1:'1缶',a2:'1缶',a3:'1〜2缶'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
-{menu:'Cook Do 青椒肉絲用',labels:['肉野菜','牛','豚','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do 青椒肉絲用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ（水煮）',a1:'33g',a2:'67g',a3:'100g'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'牛肉（または豚肉）細切り',a1:'90g程度',a2:'180g程度',a3:'270g程度'}]},
+{menu:'Cook Do 青椒肉絲用',labels:['肉野菜','牛','豚','中華','炒め物','レトルト調味料','肉メイン'],ingredients:[{n:'Cook Do 青椒肉絲用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'ピーマン',a1:'1個',a2:'2個',a3:'3個'},{n:'たけのこ（水煮）',a1:'33g',a2:'67g',a3:'100g'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'牛肉（または豚肉）細切り',a1:'90g程度',a2:'180g程度',a3:'270g程度'}]},
 {menu:'Cook Do エビチリ用',labels:['肉無し','海老','中華','炒め物','レトルト調味料'],ingredients:[{n:'Cook Do エビチリ用',a1:'50g',a2:'100g',a3:'150g'},{n:'むきエビ（冷凍）',a1:'50g',a2:'100g',a3:'150g'},{n:'長ねぎ',a1:'1/2本',a2:'1本',a3:'1本半'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'ごま油',a1:'適量',a2:'適量',a3:'適量'}]},
 {menu:'Cook Do 麻婆茄子用',labels:['肉メイン','ひき肉','豚','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 麻婆茄子用',a1:'1箱',a2:'1箱',a3:'1箱'},{n:'なす',a1:'1本',a2:'2本',a3:'3本'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'},{n:'豚ひき肉',a1:'90g',a2:'180g',a3:'270g'}]},
 {menu:'Cook Do 酢豚用',labels:['肉無し','豆腐','中華','煮物','レトルト調味料'],ingredients:[{n:'Cook Do 酢豚用',a1:'1/3袋',a2:'2/3袋',a3:'1袋'},{n:'玉ねぎ',a1:'1/2個',a2:'1個',a3:'1個半'},{n:'パプリカ',a1:'1/4個',a2:'1/2個',a3:'3/4個'},{n:'厚揚げ',a1:'1/3枚（150g）',a2:'2/3枚（300g）',a3:'1枚（450g）'},{n:'サラダ油',a1:'適量',a2:'適量',a3:'適量'}]},
@@ -1233,7 +1243,7 @@ function goAdminNewWeek(){
 // ★V2.39.0新設：来週以降の献立ページから直接「新しい週を追加」できるようにする（パスワード保護は既存のgoEditWeekと同様に維持）
 function goAddFutureMenu(){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
-  if(pwEnabled){
+  if(pwEnabled&&!(adminUnlocked||getRole()==='admin')){
     state.pendingEditWeekKey='__NEW__';
     state.pendingEditDay=null;
     go('admin-login');
@@ -1339,6 +1349,8 @@ function getLatestWeekKey(){
 }
 
 function renderTop(){
+  const verEl=document.getElementById('top-app-version');
+  if(verEl)verEl.textContent=APP_VERSION;
   const keys=Object.keys(DB.weeks).sort((a,b)=>a<b?-1:1);
   const today=new Date();today.setHours(0,0,0,0);
   let currentKey=null,futureKeys=[],pastKeys=[];
@@ -1382,8 +1394,7 @@ function renderTop(){
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='large'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('large');renderTop()">大</button>
     <button class="btn-secondary" style="flex:1;padding:10px 4px${curSize==='xlarge'?';border-color:var(--amber);color:var(--amber)':''}" onclick="applyFontSize('xlarge');renderTop()">特大</button>
   </div>
-  <button class="btn-secondary" style="width:100%;margin-bottom:16px" onclick="maybeShowWelcome()">❓ ヘルプ</button>
-  <div style="text-align:center;font-size:11px;color:var(--gray)">バージョン: ${APP_VERSION}</div>`;
+  <button class="btn-secondary" style="width:100%;margin-bottom:16px" onclick="maybeShowWelcome()">❓ ヘルプ</button>`;
 
   const bookmarkNote=`<div style="text-align:center;padding:8px 14px;font-size:13px;color:var(--gray);font-weight:600">🔖 本ページをブックマークしてください。</div>`;
   document.getElementById('top-content').innerHTML=bookmarkNote+latestHtml+navGrid;
@@ -1517,7 +1528,7 @@ function renderMenuTab(weekData){
 
 function goEditWeek(weekKey,day){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
-  if(pwEnabled){
+  if(pwEnabled&&!(adminUnlocked||getRole()==='admin')){
     state.pendingEditWeekKey=weekKey;
     state.pendingEditDay=day;
     go('admin-login');
@@ -1690,7 +1701,7 @@ function copySendText(){
 }
 function goShopAdmin(weekKey){
   const pwEnabled=DB.settings&&DB.settings.passwordEnabled;
-  if(pwEnabled){state.pendingEditWeekKey=weekKey;state.pendingEditDay=null;go('admin-login');}
+  if(pwEnabled&&!(adminUnlocked||getRole()==='admin')){state.pendingEditWeekKey=weekKey;state.pendingEditDay=null;go('admin-login');}
   // ★S-2修正：パスワード無効時も管理者役割を付与（Web保存の権限判定を通すため）
   else{adminUnlocked=true;setRole('admin');state.editingWeekKey=weekKey;go('admin-week');setTimeout(()=>{showAdminShopTab();},50);}
 }
@@ -2807,7 +2818,9 @@ function renderGptGenerateOverlay(){
 }
 async function startGptGenerate(){
   const ingInput=(document.getElementById('gpt-gen-ing-input')?.value||'').trim();
-  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度、野菜類も必要最小限）。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前・控えめ）\n調味料名:適量`;
+  // ★V2.54.0修正：分量が多くなりがちな傾向を抑えるため控えめな目安を追記。ただし出力例の表記は
+  // confirmGptGenerate()側の「（1人前）」除去用正規表現に合わせ、末尾は必ず「（1人前）」のみにする
+  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度、野菜類も必要最小限）。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
   let copied=false;
   try{
     await navigator.clipboard.writeText(prompt);
@@ -2844,7 +2857,12 @@ function confirmGptGenerate(){
     if(/^料理名/.test(t)){inIngSection=false;return;}
     if(!inIngSection)return;
     const m=t.match(/^(.+?)[:：]\s*(.+)$/);
-    if(m)ingredients.push({n:m[1].trim(),a:m[2].trim()});
+    if(m){
+      // ★GPT生成分の材料は「1人前」量で返るため、「（1人前）」等の注記を除去したうえで
+      // プリセットと同じa1/a2/a3形式（1人分・2人分・3人分）で保存し、編集画面でも正しい人数倍を表示させる
+      const a1=m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim();
+      ingredients.push({n:m[1].trim(),a1,a2:scaleAmount(a1,2),a3:scaleAmount(a1,3)});
+    }
   });
   if(ingredients.length===0){showRatingToast('⚠️ 材料が見つかりません。書式を確認してください');return;}
   const di=awGptGenerateDishIdx;
