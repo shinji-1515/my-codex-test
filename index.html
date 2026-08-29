@@ -381,6 +381,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
   <div class="content no-pad-bottom">
     <div class="admin-card">
       <div class="form-group"><label class="form-label">週開始日（月曜日）</label><input class="form-input" type="date" id="aw-start-date" oninput="renderAdminDayTabs();renderAdminDayContent()"></div>
+      <div class="form-group"><label class="form-label">今週買える魚（任意・カンマ区切りで複数可。未入力なら全メニューから抽選）</label><input class="form-input" type="text" id="aw-available-fish" placeholder="例：さば, たら" oninput="awDayState.availableFish=this.value"></div>
       <button class="btn-secondary" onclick="confirmRandomizeWeek()" style="margin-top:4px">🎲 月火水金を一括ランダム選択</button>
       <button class="btn-secondary" onclick="randomizeOneDay()" style="margin-top:4px">🎲 表示中の曜日のみランダム選択</button>
     </div>
@@ -411,8 +412,25 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.56.0（2026-08-23 編集・買い物リスト画面で管理者ログイン済みなら再ログインを求めない不具合を修正）
+// 夕食献立管理アプリ V2.57.0（2026-08-23 mainブランチの修正と運用改善をマージ統合）
 // 変更履歴（Changelog）
+// V2.57.0:
+//  [BE-1] main側で個別に進んでいた修正（V2.54.0〜V2.56.0：バージョン表示のバッジ化、GPT生成材料の1人前表記除去・a1/a2/a3形式化による人数倍計算修正、管理者ログイン済みなら再ログイン不要にする修正）と、本ブランチの運用改善（副菜・サラダ自動選定廃止、GPT分量控えめ化、今週買える魚入力、ランダム多様性向上）をマージ統合
+//  [BE-2] マージに伴い、本ブランチで追加していた「トップ画面最下部のバージョン表示」はmain側で先に実装されていたヘッダーバッジ表示と重複するため削除（バッジ表示を採用）
+//  [BE-3] GPT生成プロンプトの「控えめな分量」指示は維持しつつ、出力例の表記をmain側のconfirmGptGenerate()正規表現（末尾が「（1人前）」のみを除去）と整合するよう「分量（1人前）」に統一（「・控えめ」を末尾に含めると人数倍計算の除去処理にマッチしなくなるため）
+// V2.56.0:
+//  [BF-1] 編集・買い物リスト画面で管理者ログイン済みでも毎回パスワードを要求してしまう不具合を修正
+// V2.55.0（main側）:
+//  [BF-2] GPT生成材料をa1/a2/a3形式で保存するよう変更し、編集画面で対象人数に応じた正しい分量が表示・編集されるようにした
+// V2.54.0（main側）:
+//  [BF-3] GPT生成レシピの材料に付く「（1人前）」表記がscaleAmountの単位判定を妨げ2人分・3人分表示で倍量計算されない不具合を修正。トップ画面のバージョン表示をバッジ風に変更
+// V2.55.0（本ブランチ）:
+//  [BD-1] （V2.57.0でヘッダーバッジ表示に一本化。詳細はBE-2参照）
+// V2.54.0（本ブランチ）:
+//  [BC-1] 副菜・サラダの自動選定を完全廃止。randomizeDays()から副菜・サラダ生成コードを削除し、一括/当日ランダム選択では主菜(dishes)のみを更新するようにした。rerandomizeSideType()とその呼び出しボタン（🎲副菜/🎲サラダ再抽選）、ランダム生成設定ページの「副菜・サラダの自動選定」ON/OFF、未使用となったSIDE_CAT_MAPも削除。「＋副菜を追加」「＋サラダを追加」による手動登録・編集・削除、既存の保存済みデータの表示は変更なし
+//  [BC-2] startGptGenerate()のプロンプトに「一般的なレシピサイトの分量は多すぎることが多いため、控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度）」を追加し、ChatGPT生成の分量が過大になりがちな傾向を抑えるようにした
+//  [BC-3] 週編集画面に「今週買える魚（任意・カンマ区切り）」の入力欄を新設。DB.weeks[weekKey].availableFishとして保存・復元し、水曜（魚必須）・月曜サブ（魚必須）のランダム抽選時に入力した魚名でメニューを絞り込めるようにした（未入力時は従来通り全メニューから抽選）
+//  [BC-4] getRandomPreset()のingKeyword(単数)をingKeywords(複数・OR一致)に統一。また、抽選ロジックを一様ランダムから「直近で使われていないメニューほど選ばれやすい」重み付き抽選に変更し、ラベル条件で候補が少数に絞られる曜日でも同じメニューに偏りにくくした。getPrevWeekFlavors()の週またぎ重複回避の参照範囲を直前1週間→2週間に拡張
 // V2.53.0:
 //  [AZ-1] startGptGenerate()のプロンプトに「材料の分量は必ず『1人前』の量で記載してください」「調味料の分量は必ず『適量』としてください」を追加し、出力例も「分量（1人前）」「調味料名:適量」に変更。GPT生成の材料量が常に1人前基準、調味料は適量指定になるようにした
 //  [BB-1] 貼り付け画面（ステップ2）に「🔗 ChatGPTを開く」ボタンを追加。誤ってタブを閉じた場合やもう一度回答をコピーし直したい場合に、最初からやり直さずChatGPTを開き直せるようにした
@@ -559,7 +577,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.56.0';
+const APP_VERSION='V2.57.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1281,14 +1299,7 @@ function renderRandomSettingsContent(){
       ${body}
     </div>`;
   };
-  let html='<p style="font-size:13px;color:var(--gray);margin-bottom:4px">曜日ごとの主菜ランダム選定条件（必須・除外ラベル）と、副菜・サラダの自動選定ON/OFFを設定できます。OFFにした曜日は条件なしで自由に抽選されます。</p>';
-  html+=`<div class="admin-card" style="margin-top:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <h3 style="margin:0">🍱 副菜・サラダの自動選定</h3>
-      <button class="sides-toggle-btn" style="border:1px solid var(--amber);border-radius:8px;padding:6px 14px${awRandomSettingsDraft.sideEnabled?';border-color:var(--amber);color:var(--amber)':''}" onclick="awRandomSettingsDraft.sideEnabled=!awRandomSettingsDraft.sideEnabled;renderRandomSettingsContent()">${awRandomSettingsDraft.sideEnabled?'ON':'OFF'}</button>
-    </div>
-    <p style="font-size:12px;color:var(--gray);margin-top:6px">OFFにすると、一括・当日ランダム選択や🎲再抽選ボタンで副菜・サラダが自動選定されなくなります（主菜のみ抽選）</p>
-  </div>`;
+  let html='<p style="font-size:13px;color:var(--gray);margin-bottom:4px">曜日ごとの主菜ランダム選定条件（必須・除外ラベル）を設定できます。OFFにした曜日は条件なしで自由に抽選されます。副菜・サラダは自動選定を廃止しており、各曜日の編集画面から手動で追加してください。</p>';
   ['月','火','水','金'].forEach(d=>{html+=dayCard(d);});
   html+=`<button class="btn-primary" style="width:100%;margin-top:16px" onclick="confirmSaveRandomSettings()">💾 保存する</button>
   <button class="btn-secondary" style="width:100%;margin-top:8px" onclick="appConfirm('初期設定に戻しますか？（保存するボタンを押すまでは確定しません）',resetRandomSettings)">↺ 初期設定に戻す</button>`;
@@ -1886,6 +1897,7 @@ function renderAdminWeek(){
     document.getElementById('aw-start-date').value=k;
     awDayState.days={};
     DAYS.forEach(d=>{awDayState.days[d]=JSON.parse(JSON.stringify(wd.menus[d]||{cooking:false,dishes:[],sides:[]}));});
+    awDayState.availableFish=wd.availableFish||'';
   }else{
     let initDate=getNextMonday();
     while(DB.weeks[initDate]){
@@ -1900,8 +1912,11 @@ function renderAdminWeek(){
       const defDishes=DAY_DEFAULTS[d]?JSON.parse(JSON.stringify(DAY_DEFAULTS[d])):[{target:'',menu:'',time:'',ingredients:[]}];
       awDayState.days[d]={cooking:hasCook,dishes:hasCook?defDishes:[],sides:[]};
     });
+    awDayState.availableFish='';
   }
   awDayState.day='月';
+  const fishInput=document.getElementById('aw-available-fish');
+  if(fishInput)fishInput.value=awDayState.availableFish||'';
   setAdminWeekTab('menu');
 }
 
@@ -2024,17 +2039,13 @@ function renderAdminDayContent(){
     const sideEntries=[],saladEntries=[];
     sides.forEach((s,si)=>{(s.type==='サラダ'?saladEntries:sideEntries).push([s,si]);});
     html+=`<div class="sides-card" style="margin-top:12px">
-      <div class="sides-header">🍱 副菜
-        <button class="sides-toggle-btn" onclick="rerandomizeSideType('副菜')">🎲 再抽選</button>
-      </div>`;
+      <div class="sides-header">🍱 副菜</div>`;
     sideEntries.forEach(([s,si],i)=>{html+=renderSideEditBlock(s,si,i+1);});
     if(sideEntries.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">副菜未登録</div>`;
     html+=`<div style="padding:10px 16px"><button class="btn-secondary" style="width:100%" onclick="addSideBlank('副菜')">＋ 副菜を追加</button></div></div>`;
 
     html+=`<div class="sides-card" style="margin-top:12px">
-      <div class="sides-header">🥗 サラダ
-        <button class="sides-toggle-btn" onclick="rerandomizeSideType('サラダ')">🎲 再抽選</button>
-      </div>`;
+      <div class="sides-header">🥗 サラダ</div>`;
     saladEntries.forEach(([s,si],i)=>{html+=renderSideEditBlock(s,si,i+1);});
     if(saladEntries.length===0) html+=`<div style="padding:12px 16px;font-size:13px;color:var(--gray)">サラダ未登録</div>`;
     html+=`<div style="padding:10px 16px"><button class="btn-secondary" style="width:100%" onclick="addSideBlank('サラダ')">＋ サラダを追加</button></div></div>`;
@@ -2161,11 +2172,13 @@ function saveAdminWeek(){
   if(!startDate){alert('週開始日を入力してください');return;}
   const menus={};
   DAYS.forEach(d=>{menus[d]=awDayState.days[d];});
+  const availableFish=(document.getElementById('aw-available-fish')?.value||'').trim();
+  awDayState.availableFish=availableFish;
 
   const weekKey=startDate;
   const isNew=!state.editingWeekKey||state.editingWeekKey!==weekKey;
   const doSave=async()=>{
-    DB.weeks[weekKey]={menus,shopping:buildShoppingList(menus)};
+    DB.weeks[weekKey]={menus,shopping:buildShoppingList(menus),availableFish};
     if(state.editingWeekKey&&state.editingWeekKey!==weekKey){
       delete DB.weeks[state.editingWeekKey];
     }
@@ -2559,42 +2572,49 @@ function isDuplicateCandidate(candidate,ctx){
   return hasIngOverlap||hasProteinOverlap||hasFlavorOverlap;
 }
 // ★V2.9.0修正：前週（weekStartの7日前を開始日とする週）に使用した全曜日のフレーバー系統を返す。今週分と合わせて重複回避に使う
+// ★V2.54.0修正：週またぎのフレーバー重複回避を直前1週間→2週間に拡張（randomizeDays内のrecentSidesと同じ「2週間」に揃えている）
 function getPrevWeekFlavors(weekStartStr){
   const flavors=new Set();
   if(!weekStartStr)return flavors;
-  const prevMon=new Date(weekStartStr+'T00:00:00');prevMon.setDate(prevMon.getDate()-7);
-  const prevWeekKey=`${prevMon.getFullYear()}-${String(prevMon.getMonth()+1).padStart(2,'0')}-${String(prevMon.getDate()).padStart(2,'0')}`;
-  const prevWeekData=DB.weeks[prevWeekKey];
-  if(prevWeekData&&prevWeekData.menus){
-    DAYS.forEach(d=>{
-      (prevWeekData.menus[d]?.dishes||[]).forEach(dish=>{
-        const fam=getFlavorFamily(dish.menu);
-        if(fam)flavors.add(fam);
+  [1,2].forEach(weeksAgo=>{
+    const prevMon=new Date(weekStartStr+'T00:00:00');prevMon.setDate(prevMon.getDate()-7*weeksAgo);
+    const prevWeekKey=`${prevMon.getFullYear()}-${String(prevMon.getMonth()+1).padStart(2,'0')}-${String(prevMon.getDate()).padStart(2,'0')}`;
+    const prevWeekData=DB.weeks[prevWeekKey];
+    if(prevWeekData&&prevWeekData.menus){
+      DAYS.forEach(d=>{
+        (prevWeekData.menus[d]?.dishes||[]).forEach(dish=>{
+          const fam=getFlavorFamily(dish.menu);
+          if(fam)flavors.add(fam);
+        });
       });
-    });
-  }
+    }
+  });
   return flavors;
 }
-// opts: { requireLabels:string[], excludeLabels:string[], ingKeyword:string, excludeMenus:Set }
+// opts: { requireLabels:string[], excludeLabels:string[], ingKeywords:string[], excludeMenus:Set }
 function getRandomPreset(opts){
   opts=opts||{};
   const requireLabels=opts.requireLabels||[];
   const excludeLabels=opts.excludeLabels||[];
-  const ingKeyword=opts.ingKeyword||null;
+  // ★V2.54.0修正：単数のingKeyword指定も後方互換のため配列化して扱う（呼び出し元はingKeywordsに統一）
+  const ingKeywords=opts.ingKeywords||(opts.ingKeyword?[opts.ingKeyword]:[]);
   const excludeMenus=opts.excludeMenus||null;
   const now=new Date();now.setHours(0,0,0,0);
   const oneMonthAgo=new Date(now);oneMonthAgo.setMonth(oneMonthAgo.getMonth()-1);
   const ratings=getRatings();
   const recentUsed=new Set();
+  const lastUsedDate={}; // ★V2.54.0新設：メニューごとの最終使用日（多様性向上の重み付け抽選用）
   let beefUsedInLastMonth=false; // ★V2.4.0修正：牛肉のランダム選定は月1回までとする
   Object.entries(DB.weeks).forEach(([wk,wd])=>{
     const wkDate=new Date(wk+'T00:00:00');
     DAYS.forEach(d=>{
       (wd.menus?.[d]?.dishes||[]).forEach(dish=>{
+        if(!dish.menu)return;
         if(wkDate>=oneMonthAgo){
           recentUsed.add(dish.menu);
           if((dish.labels||[]).includes('牛'))beefUsedInLastMonth=true;
         }
+        if(!lastUsedDate[dish.menu]||wkDate>lastUsedDate[dish.menu])lastUsedDate[dish.menu]=wkDate;
       });
     });
   });
@@ -2602,7 +2622,8 @@ function getRandomPreset(opts){
   let pool=getMergedPresets();
   if(requireLabels.length) pool=pool.filter(p=>requireLabels.every(l=>(p.labels||[]).includes(l)));
   if(excludeLabels.length) pool=pool.filter(p=>excludeLabels.every(l=>!(p.labels||[]).includes(l)));
-  if(ingKeyword) pool=pool.filter(p=>p.menu.includes(ingKeyword)||(p.ingredients||[]).some(i=>i.n.includes(ingKeyword)));
+  // ★V2.54.0修正：複数キーワードのOR一致に対応（「今週買える魚」自由入力での絞り込み用）
+  if(ingKeywords.length) pool=pool.filter(p=>ingKeywords.some(k=>p.menu.includes(k)||(p.ingredients||[]).some(i=>i.n.includes(k))));
   if(excludeMenus&&excludeMenus.size) pool=pool.filter(p=>!excludeMenus.has(p.menu));
   // ★V2.4.0修正：直近1ヶ月以内に牛肉料理を使っていれば、牛肉が明示的に指定されていない限り候補から除外
   if(beefUsedInLastMonth&&!requireLabels.includes('牛')) pool=pool.filter(p=>!(p.labels||[]).includes('牛'));
@@ -2619,8 +2640,24 @@ function getRandomPreset(opts){
     return true;
   });
   if(!pool.length)return null;
+  // ★V2.54.0修正：候補が複数ラベル条件等で少数に絞られる曜日でも同じメニューばかりにならないよう、
+  // 「未使用期間が長いメニューほど選ばれやすい」重み付き抽選にする（一様ランダムだと偏りが起きやすいため）
+  const unusedDays=pool.map(p=>{
+    const lu=lastUsedDate[p.menu];
+    if(!lu)return null; // 使用実績なし＝最大重み（後で最大未使用日数+1を設定）
+    return Math.floor((now-lu)/(24*3600*1000));
+  });
+  const knownMax=unusedDays.reduce((mx,v)=>v!=null&&v>mx?v:mx,0);
+  const weights=unusedDays.map(v=>(v==null?knownMax+1:v)+1); // +1で0日でも重み0にならないようにする
+  const totalWeight=weights.reduce((a,b)=>a+b,0);
+  let r=Math.random()*totalWeight;
+  let pickedIdx=pool.length-1;
+  for(let i=0;i<weights.length;i++){
+    r-=weights[i];
+    if(r<=0){pickedIdx=i;break;}
+  }
   // ★A-2修正：抽選結果は複製して内部管理用キー(_orig)を除去してから返す（週データへの混入防止）
-  const picked=JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
+  const picked=JSON.parse(JSON.stringify(pool[pickedIdx]));
   delete picked._orig;
   return picked;
 }
@@ -2631,8 +2668,7 @@ function getDefaultRandomSettings(){
     '月':{enabled:true, mainRequire:['肉メイン'], mainExclude:['レトルト完成品'], subRequire:['魚','レトルト完成品']},
     '火':{enabled:true, mainRequire:['海老'], mainExclude:['レトルト完成品']},
     '水':{enabled:true, mainRequire:['魚'], mainExclude:['レトルト完成品']},
-    '金':{enabled:true, mainExclude:['魚','海老','レトルト完成品']},
-    sideEnabled:true
+    '金':{enabled:true, mainExclude:['魚','海老','レトルト完成品']}
   };
 }
 function getRandomSettings(){
@@ -2647,19 +2683,25 @@ function saveRandomSettings(s){
   pushMenuToGist();
 }
 // 曜日ごとのラベルルール定義（ランダム生成設定を反映）
-// 各エントリ: {requireLabels:[], excludeLabels:[], ingKeyword:''}
+// 各エントリ: {requireLabels:[], excludeLabels:[], ingKeywords:string[]}
 function getDayLabelRules(d, weekEpoch){
   const settings=getRandomSettings();
   const ds=settings[d];
   if(!ds||!ds.enabled)return null; // 無効な曜日はラベル条件なし（自由選択）
+  // ★V2.54.0新設：「今週買える魚」自由入力（週編集中のawDayState.availableFish）を、魚が必須の曜日の絞り込みに反映する
+  const fishKeywords=(awDayState.availableFish||'').split(/[,、\s]+/).map(s=>s.trim()).filter(Boolean);
   if(d==='金'){
     // 金曜日は肉野菜か肉無しをランダムで選ぶ（隔週切替は固定仕様）
     const friLabel = weekEpoch%2===0 ? '肉野菜' : '肉無し';
     return [{requireLabels:[friLabel], excludeLabels:ds.mainExclude||[]}];
   }
-  const rules=[{requireLabels:ds.mainRequire||[], excludeLabels:ds.mainExclude||[]}];
+  const mainRule={requireLabels:ds.mainRequire||[], excludeLabels:ds.mainExclude||[]};
+  if(d==='水'&&fishKeywords.length&&(ds.mainRequire||[]).includes('魚')) mainRule.ingKeywords=fishKeywords;
+  const rules=[mainRule];
   if(d==='月'&&ds.subRequire&&ds.subRequire.length){
-    rules.push({requireLabels:ds.subRequire});
+    const subRule={requireLabels:ds.subRequire};
+    if(fishKeywords.length&&ds.subRequire.includes('魚')) subRule.ingKeywords=fishKeywords;
+    rules.push(subRule);
   }
   return rules;
 }
@@ -2668,12 +2710,12 @@ function pickRandom(dishIdx){
   const ws=document.getElementById('aw-start-date')?.value;
   const we=ws?Math.floor(new Date(ws+'T00:00:00').getTime()/(7*24*3600*1000)):0;
   const dayRules=getDayLabelRules(d,we);
-  let reqLabels=[],excLabels=[],ingKeyword=null;
+  let reqLabels=[],excLabels=[],ingKeywords=[];
   if(dayRules&&dayRules[dishIdx]!==undefined){
     const rule=dayRules[dishIdx];
     reqLabels=rule.requireLabels||[];
     excLabels=rule.excludeLabels||[];
-    ingKeyword=rule.ingKeyword||null;
+    ingKeywords=rule.ingKeywords||[];
   }else{
     // フィルタUI選択を使用
     reqLabels=awActiveLabels&&awActiveLabels.length?awActiveLabels:[];
@@ -2698,13 +2740,13 @@ function pickRandom(dishIdx){
   const excludeMenus=new Set();
   let result=null;
   for(let attempt=0;attempt<6;attempt++){
-    const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword,excludeMenus});
+    const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeywords,excludeMenus});
     if(!candidate)break;
     if(!isDuplicateCandidate(candidate,{weekUsedIngs,usedProteins:weekUsedProteins,skipProteinCheck,usedFlavors:weekUsedFlavors})){result=candidate;break;}
     excludeMenus.add(candidate.menu);
     if(attempt===5)result=candidate;
   }
-  if(!result)result=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword});
+  if(!result)result=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeywords});
   if(!result)result=getRandomPreset({});
   if(!result){alert('条件に合うメニューが見つかりません');return;}
   addPresetDish(dishIdx,result.menu);
@@ -2776,7 +2818,9 @@ function renderGptGenerateOverlay(){
 }
 async function startGptGenerate(){
   const ingInput=(document.getElementById('gpt-gen-ing-input')?.value||'').trim();
-  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
+  // ★V2.54.0修正：分量が多くなりがちな傾向を抑えるため控えめな目安を追記。ただし出力例の表記は
+  // confirmGptGenerate()側の「（1人前）」除去用正規表現に合わせ、末尾は必ず「（1人前）」のみにする
+  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度、野菜類も必要最小限）。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
   let copied=false;
   try{
     await navigator.clipboard.writeText(prompt);
@@ -2886,12 +2930,12 @@ function rerandomizeMainDishesForDay(d){
   dayRules.forEach((rule,itemIdx)=>{
     const reqLabels=rule.requireLabels||[];
     const excLabels=rule.excludeLabels||[];
-    const ingKeyword=rule.ingKeyword||null;
+    const ingKeywords=rule.ingKeywords||[];
     const skipProteinCheck=reqLabels.some(l=>PROTEIN_LABELS.includes(l));
     let r=null;
     const excludeMenus=new Set();
     for(let attempt=0;attempt<6;attempt++){
-      const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword,excludeMenus});
+      const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeywords,excludeMenus});
       if(!candidate)break;
       const relevantUsedProteins=d==='月'?new Set([...weekUsedProteins,...prevFridayProteins]):weekUsedProteins;
       const isDup=isDuplicateCandidate(candidate,{weekUsedIngs,usedProteins:relevantUsedProteins,skipProteinCheck,usedFlavors:weekUsedFlavors});
@@ -2923,43 +2967,9 @@ function randomizeDays(cookDays){
     if(!awDayState.days['木'])awDayState.days['木']={cooking:false,dishes:[],sides:[]};
     awDayState.days['木'].cooking=false;
   }
-  // 過去2週間に使われた副菜・サラダ名を収集
-  const now2w=new Date();now2w.setHours(0,0,0,0);
-  const twoWeeksAgo=new Date(now2w);twoWeeksAgo.setDate(twoWeeksAgo.getDate()-14);
-  const recentSides=new Set();
-  Object.entries(DB.weeks).forEach(([wk,wd])=>{
-    const wkDate=new Date(wk+'T00:00:00');
-    if(wkDate>=twoWeeksAgo){
-      DAYS.forEach(d=>{(wd.menus?.[d]?.sides||[]).forEach(s=>{if(s.name)recentSides.add(s.name);});});
-    }
-  });
-  const weekUsedSideNames=new Set(); // 週内で使用済みの副菜・サラダ名
-  const pickFreshSide=(pool)=>{
-    const notUsedThisWeek=pool.filter(s=>!weekUsedSideNames.has(s.name));
-    const candidates=notUsedThisWeek.length?notUsedThisWeek:pool;
-    const fresh=candidates.filter(s=>!recentSides.has(s.name));
-    const final=fresh.length?fresh:candidates;
-    return final[Math.floor(Math.random()*final.length)];
-  };
   const dayTargets={'月':['父・兄（2人分）','母（1人分）'],'火':['3人分'],'水':['3人分'],'金':['3人分']};
   const weekStart=document.getElementById('aw-start-date').value;
   const weekEpoch=weekStart?Math.floor(new Date(weekStart+'T00:00:00').getTime()/(7*24*3600*1000)):0;
-  const saladDayOffset={'月':0,'火':1,'水':2};
-  const getSaladForDay=(d)=>{
-    const idx=(weekEpoch*3+(saladDayOffset[d]||0))%AEON_SALADS.length;
-    const primary=AEON_SALADS[idx];
-    if(!weekUsedSideNames.has(primary.name))return primary;
-    return pickFreshSide(AEON_SALADS.filter(s=>s.name!==primary.name));
-  };
-  const sideCatMap={
-    '肉メイン':      ['和え物','豆腐・大豆','卵'],
-    '海老料理':      ['和え物','豆腐・大豆','卵'],
-    '魚料理':        ['豆腐・大豆','和え物','煮物','卵'],
-    '残り野菜活用':  ['和え物','豆腐・大豆','卵'],
-    '肉野菜':        ['和え物','煮物','豆腐・大豆'],
-    '肉無し料理':    ['和え物','煮物','豆腐・大豆'],
-    'レトルト調味料':['和え物','煮物','豆腐・大豆'],
-  };
   const weekUsedIngs=new Set(); // 週内で使用済みの主要食材
   const weekUsedProteins=new Set(); // 週内で使用済みの主食材ラベル（豚/牛/鶏/魚/海老）
   const weekUsedFlavors=new Set(); // 週内で使用済みのフレーバー系統（麻婆/カレー等）
@@ -2976,7 +2986,6 @@ function randomizeDays(cookDays){
       const fam=getFlavorFamily(dish.menu);
       if(fam)weekUsedFlavors.add(fam);
     });
-    (dayData.sides||[]).forEach(s=>{if(s.name)weekUsedSideNames.add(s.name);});
   });
   // 前週金曜の主食材ラベルを収集（月曜との重複回避用）
   const prevFridayProteins=new Set();
@@ -3006,14 +3015,14 @@ function randomizeDays(cookDays){
     dayRules.forEach((rule,itemIdx)=>{
       const reqLabels=rule.requireLabels||[];
       const excLabels=rule.excludeLabels||[];
-      const ingKeyword=rule.ingKeyword||null;
+      const ingKeywords=rule.ingKeywords||[];
       // ラベルで魚・海老等が指定必須の曜日（火=海老/水=魚/月サブ=魚）は重複チェック対象外
       const skipProteinCheck=reqLabels.some(l=>PROTEIN_LABELS.includes(l));
       // 週内食材重複・連続調理法を避けるため最大5回リトライ
       let r=null;
       const excludeMenus=new Set();
       for(let attempt=0;attempt<6;attempt++){
-        const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeyword,excludeMenus});
+        const candidate=getRandomPreset({requireLabels:reqLabels,excludeLabels:excLabels,ingKeywords,excludeMenus});
         if(!candidate)break;
         const relevantUsedProteins=d==='月'?new Set([...weekUsedProteins,...prevFridayProteins]):weekUsedProteins;
         const isDup=isDuplicateCandidate(candidate,{weekUsedIngs,usedProteins:relevantUsedProteins,skipProteinCheck,usedFlavors:weekUsedFlavors});
@@ -3036,123 +3045,10 @@ function randomizeDays(cookDays){
       }
     });
     if(newDishes.length)awDayState.days[d].dishes=newDishes;
-    // ★V2.49.0修正：ランダム生成設定で副菜・サラダの自動選定がOFFの場合は既存の内容を残してスキップする
-    if(!getRandomSettings().sideEnabled){return;}
-    const isCurry=newDishes.some(dish=>dish.menu&&dish.menu.includes('カレー'));
-    awDayState.days[d].sides=[];
-    if(isCurry){
-      const curryPickle=Math.random()<0.5?{name:'福神漬け',search:'福神漬け'}:{name:'らっきょう',search:'らっきょう'};
-      awDayState.days[d].sides.push({type:'副菜',name:curryPickle.name,search:curryPickle.search});
-      weekUsedSideNames.add(curryPickle.name);
-    }else if(d==='金'){
-      const warmPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
-      const tsukemonoPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
-      const side1=pickFreshSide(warmPool);
-      if(side1)weekUsedSideNames.add(side1.name);
-      const side2=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
-      if(side2)weekUsedSideNames.add(side2.name);
-      if(side1)awDayState.days[d].sides.push({type:'副菜',name:side1.name,search:side1.search||side1.name});
-      if(side2)awDayState.days[d].sides.push({type:'サラダ',name:side2.name,search:side2.search||side2.name});
-    }else{
-      const dayRule0=(getDayLabelRules(d,weekEpoch)||[{}])[0]||{};
-      const req0=dayRule0.requireLabels||[];
-      const mainLabelKey=req0[0]||'';
-      const preferredCats=sideCatMap[mainLabelKey]||['和え物','煮物','豆腐・大豆'];
-      const sidePool=RETORT_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
-      const finalPool=sidePool.length?sidePool:RETORT_SIDES;
-      const side=pickFreshSide(finalPool);
-      if(side)weekUsedSideNames.add(side.name);
-      if(side)awDayState.days[d].sides.push({type:'副菜',name:side.name,search:side.search||side.name});
-      if(['月','火','水'].includes(d)){
-        const salad=getSaladForDay(d);
-        if(salad)weekUsedSideNames.add(salad.name);
-        if(salad)awDayState.days[d].sides.push({type:'サラダ',name:salad.name,search:salad.search||salad.name});
-      }
-    }
+    // ★V2.54.0修正：副菜・サラダの自動選定は廃止。ランダム生成では主菜(dishes)のみ更新し、sidesには一切触れない
   });
   renderAdminDayContent();
 }
-// ★V2.12.0新設：主菜メニューの実装(sideCatMap)を単体再抽選からも参照できるよう共通化
-const SIDE_CAT_MAP={
-  '肉メイン':      ['和え物','豆腐・大豆','卵'],
-  '海老料理':      ['和え物','豆腐・大豆','卵'],
-  '魚料理':        ['豆腐・大豆','和え物','煮物','卵'],
-  '残り野菜活用':  ['和え物','豆腐・大豆','卵'],
-  '肉野菜':        ['和え物','煮物','豆腐・大豆'],
-  '肉無し料理':    ['和え物','煮物','豆腐・大豆'],
-  'レトルト調味料':['和え物','煮物','豆腐・大豆'],
-};
-// ★V2.12.0新設：主菜はそのままに、その日の副菜・サラダだけを再抽選する
-// ★V2.18.0修正：副菜・サラダを別々のボタンで再抽選できるよう type 別に分割
-function rerandomizeSideType(type,d){
-  if(!getRandomSettings().sideEnabled){showRatingToast('副菜・サラダの自動選定はOFFになっています（ランダム生成設定で変更できます）');return;}
-  d=d||awDayState.day;
-  if(!awDayState.days[d])awDayState.days[d]={cooking:true,dishes:[],sides:[]};
-  const weekStart=document.getElementById('aw-start-date').value;
-  const weekEpoch=weekStart?Math.floor(new Date(weekStart+'T00:00:00').getTime()/(7*24*3600*1000)):0;
-  const now2w=new Date();now2w.setHours(0,0,0,0);
-  const twoWeeksAgo=new Date(now2w);twoWeeksAgo.setDate(twoWeeksAgo.getDate()-14);
-  const recentSides=new Set();
-  Object.entries(DB.weeks).forEach(([wk,wd])=>{
-    const wkDate=new Date(wk+'T00:00:00');
-    if(wkDate>=twoWeeksAgo){DAYS.forEach(dd=>{(wd.menus?.[dd]?.sides||[]).forEach(s=>{if(s.name)recentSides.add(s.name);});});}
-  });
-  const weekUsedSideNames=new Set();
-  DAYS.forEach(dd=>{
-    (awDayState.days[dd]?.sides||[]).forEach(s=>{
-      if(dd===d&&s.type===type)return; // 差し替え対象自身は重複判定から除外
-      if(s.name)weekUsedSideNames.add(s.name);
-    });
-  });
-  const pickFreshSide=(pool)=>{
-    const notUsedThisWeek=pool.filter(s=>!weekUsedSideNames.has(s.name));
-    const candidates=notUsedThisWeek.length?notUsedThisWeek:pool;
-    const fresh=candidates.filter(s=>!recentSides.has(s.name));
-    const final=fresh.length?fresh:candidates;
-    return final[Math.floor(Math.random()*final.length)];
-  };
-  const dishes=awDayState.days[d].dishes||[];
-  const isCurry=dishes.some(dish=>dish.menu&&dish.menu.includes('カレー'));
-  let picked=null;
-  if(type==='副菜'){
-    if(isCurry){
-      const p=Math.random()<0.5?{name:'福神漬け',search:'福神漬け'}:{name:'らっきょう',search:'らっきょう'};
-      picked={type:'副菜',name:p.name,search:p.search};
-    }else if(d==='金'){
-      const warmPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('煮物'));
-      const s=pickFreshSide(warmPool);
-      if(s)picked={type:'副菜',name:s.name,search:s.search||s.name};
-    }else{
-      const dayRule0=(getDayLabelRules(d,weekEpoch)||[{}])[0]||{};
-      const req0=dayRule0.requireLabels||[];
-      const mainLabelKey=req0[0]||'';
-      const preferredCats=SIDE_CAT_MAP[mainLabelKey]||['和え物','煮物','豆腐・大豆'];
-      const sidePool=RETORT_SIDES.filter(s=>(s.labels||[]).some(l=>preferredCats.includes(l)));
-      const finalPool=sidePool.length?sidePool:RETORT_SIDES;
-      const s=pickFreshSide(finalPool);
-      if(s)picked={type:'副菜',name:s.name,search:s.search||s.name};
-    }
-  }else{
-    if(d==='金'){
-      const tsukemonoPool=RETORT_SIDES.filter(s=>(s.labels||[]).includes('漬物'));
-      const s=tsukemonoPool.length?pickFreshSide(tsukemonoPool):null;
-      if(s)picked={type:'サラダ',name:s.name,search:s.search||s.name};
-    }else{
-      // ★V2.23.0修正：手動再抽選では曜日固定のローテーション値を使わず、現在の表示中サラダとは別の候補を必ず選ぶ
-      const currentSalad=(awDayState.days[d].sides||[]).find(x=>x.type==='サラダ');
-      const pool=currentSalad?AEON_SALADS.filter(x=>x.name!==currentSalad.name):AEON_SALADS;
-      const s=pickFreshSide(pool.length?pool:AEON_SALADS);
-      if(s)picked={type:'サラダ',name:s.name,search:s.search||s.name};
-    }
-  }
-  if(!picked){showRatingToast('候補が見つかりません');return;}
-  const sides=awDayState.days[d].sides||[];
-  const idx=sides.findIndex(x=>x.type===type);
-  if(idx>=0)sides[idx]=picked;else sides.push(picked);
-  awDayState.days[d].sides=sides;
-  renderAdminDayContent();
-}
-
 // ===================== PAST / FUTURE SCREENS =====================
 function renderPast(){
   const today=new Date();today.setHours(0,0,0,0);
@@ -3670,7 +3566,6 @@ function maybeShowWelcome(){
       👍 いいね／👎 うーんで感想を記録できます。<br>
       ※評価ができるのは父のみです。
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--gray);margin-bottom:12px">バージョン: ${APP_VERSION}</div>
     <button onclick="document.getElementById('app-modal-overlay').remove()" style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">閉じる</button>
   </div>`;
   document.body.appendChild(ov);
