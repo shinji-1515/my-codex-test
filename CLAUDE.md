@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 業種: 医療機器メーカー 製造・CAD/CAM領域
 - 主要環境: Siemens 840D / Cimatron V15、社内ネットワーク制限あり
 - 開発言語: Excel VBA
+- 制約: web版Claude Code（クラウド隔離環境）はGitHubへの直接push不可 → 手動アップロード必須
 
 ## 2. コーディング規約（全モジュール共通）
 
