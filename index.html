@@ -412,8 +412,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.57.0（2026-08-23 mainブランチの修正と運用改善をマージ統合）
+// 夕食献立管理アプリ V2.58.0（2026-08-30 GPT生成結果が改行なしの1行で返された場合の解析不具合を修正）
 // 変更履歴（Changelog）
+// V2.58.0:
+//  [BG-1] confirmGptGenerate()がChatGPTの回答を必ず改行区切り前提で解析していたため、ChatGPT側が「料理名: ○○ 材料: 名前:量 名前:量...」のように改行なしの1行で返してきた場合に材料が1件も検出されず登録できない不具合を修正。「材料:」「料理名:」の位置を基準に料理名・材料セクションを切り出し、材料は改行・空白どちらの区切りでも解析できるようにした
 // V2.57.0:
 //  [BE-1] main側で個別に進んでいた修正（V2.54.0〜V2.56.0：バージョン表示のバッジ化、GPT生成材料の1人前表記除去・a1/a2/a3形式化による人数倍計算修正、管理者ログイン済みなら再ログイン不要にする修正）と、本ブランチの運用改善（副菜・サラダ自動選定廃止、GPT分量控えめ化、今週買える魚入力、ランダム多様性向上）をマージ統合
 //  [BE-2] マージに伴い、本ブランチで追加していた「トップ画面最下部のバージョン表示」はmain側で先に実装されていたヘッダーバッジ表示と重複するため削除（バッジ表示を採用）
@@ -577,7 +579,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.57.0';
+const APP_VERSION='V2.58.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2844,26 +2846,25 @@ async function startGptGenerate(){
 function confirmGptGenerate(){
   const raw=(document.getElementById('gpt-gen-paste-input')?.value||'').trim();
   if(!raw){showRatingToast('貼り付け内容が空です');return;}
-  const menuMatch=raw.match(/料理名[:：]\s*(.+)/);
+  // ★V2.58.0修正：GPTの回答が改行なしの1行で返ってくる場合にも対応できるよう、
+  // 「材料:」「料理名:」の位置を基準に料理名・材料セクションを切り出し、
+  // 材料は改行・空白どちらの区切りでも「名前:分量」の並びとして解析する
+  const menuMatch=raw.match(/料理名[:：]\s*([\s\S]+?)(?:\s*材料[:：]|$)/);
   if(!menuMatch){showRatingToast('⚠️ 料理名が見つかりません。書式を確認してください');return;}
   const menu=menuMatch[1].trim();
+  const ingSectionMatch=raw.match(/材料[:：]\s*([\s\S]+?)(?:\s*料理名[:：]|$)/);
   const ingredients=[];
-  const lines=raw.split('\n');
-  let inIngSection=false;
-  lines.forEach(line=>{
-    const t=line.trim();
-    if(!t)return;
-    if(/^材料[:：]?$/.test(t)){inIngSection=true;return;}
-    if(/^料理名/.test(t)){inIngSection=false;return;}
-    if(!inIngSection)return;
-    const m=t.match(/^(.+?)[:：]\s*(.+)$/);
-    if(m){
-      // ★GPT生成分の材料は「1人前」量で返るため、「（1人前）」等の注記を除去したうえで
-      // プリセットと同じa1/a2/a3形式（1人分・2人分・3人分）で保存し、編集画面でも正しい人数倍を表示させる
-      const a1=m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim();
-      ingredients.push({n:m[1].trim(),a1,a2:scaleAmount(a1,2),a3:scaleAmount(a1,3)});
-    }
-  });
+  if(ingSectionMatch){
+    ingSectionMatch[1].split(/\s+/).map(s=>s.trim()).filter(Boolean).forEach(t=>{
+      const m=t.match(/^(.+?)[:：](.+)$/);
+      if(m){
+        // ★GPT生成分の材料は「1人前」量で返るため、「（1人前）」等の注記を除去したうえで
+        // プリセットと同じa1/a2/a3形式（1人分・2人分・3人分）で保存し、編集画面でも正しい人数倍を表示させる
+        const a1=m[2].trim().replace(/[（(]\s*1\s*人[前分]\s*[）)]\s*$/,'').trim();
+        ingredients.push({n:m[1].trim(),a1,a2:scaleAmount(a1,2),a3:scaleAmount(a1,3)});
+      }
+    });
+  }
   if(ingredients.length===0){showRatingToast('⚠️ 材料が見つかりません。書式を確認してください');return;}
   const di=awGptGenerateDishIdx;
   const d=awDayState.day;
