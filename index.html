@@ -265,7 +265,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 <!-- PAST -->
 <div id="screen-past" class="screen">
   <div class="header"><button class="back-btn" onclick="go('top')">←</button><h1>過去の献立</h1></div>
-  <div class="content no-pad-bottom" id="past-content"></div>
+  <div class="content no-pad-bottom">
+    <div style="padding:8px 0">
+      <input id="past-ing-search" class="form-input" placeholder="🔍 材料名で検索（例：鶏むね肉）" oninput="renderPast()">
+    </div>
+    <div id="past-content"></div>
+  </div>
 </div>
 
 <!-- FUTURE -->
@@ -412,8 +417,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.58.0（2026-08-30 GPT生成結果が改行なしの1行で返された場合の解析不具合を修正）
+// 夕食献立管理アプリ V2.59.0（2026-09-06 GPTプロンプトの矛盾修正・過去献立の材料検索を追加）
 // 変更履歴（Changelog）
+// V2.59.0:
+//  [BH-1] startGptGenerate()のプロンプトを点検し2点修正。①「使いたい材料」が未入力の場合に「以下の材料を使った」という矛盾した書き出しになっていたのを、材料指定の有無で文言を分岐するよう修正。②直前のV2.58.0で改行なし1行返却による登録不可バグが実際に発生したため、パース側の耐性向上だけでなくプロンプト自体にも「材料は1行につき1つ、必ず改行で区切ってください」という明示指示を追加し、再発を抑制
+//  [BH-2] 過去の献立画面（renderPast()）に材料名検索欄を新設。入力した材料名を含む主菜・副菜・サラダを持つ週だけに絞り込んで表示し、該当曜日・料理名・材料名をハイライト表示するようにした
 // V2.58.0:
 //  [BG-1] confirmGptGenerate()がChatGPTの回答を必ず改行区切り前提で解析していたため、ChatGPT側が「料理名: ○○ 材料: 名前:量 名前:量...」のように改行なしの1行で返してきた場合に材料が1件も検出されず登録できない不具合を修正。「材料:」「料理名:」の位置を基準に料理名・材料セクションを切り出し、材料は改行・空白どちらの区切りでも解析できるようにした
 // V2.57.0:
@@ -579,7 +587,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.58.0';
+const APP_VERSION='V2.59.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2822,7 +2830,12 @@ async function startGptGenerate(){
   const ingInput=(document.getElementById('gpt-gen-ing-input')?.value||'').trim();
   // ★V2.54.0修正：分量が多くなりがちな傾向を抑えるため控えめな目安を追記。ただし出力例の表記は
   // confirmGptGenerate()側の「（1人前）」除去用正規表現に合わせ、末尾は必ず「（1人前）」のみにする
-  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度、野菜類も必要最小限）。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
+  // ★V2.59.0修正：①使いたい材料が未入力の場合に「以下の材料を使った」という矛盾した書き出しになっていたのを修正
+  // ②改行なしの1行で返されて登録できない不具合が実際に発生したため、各項目を必ず改行で区切るよう明示的に指示を追加
+  const introLine=ingInput
+    ? `以下の材料を使った夕食のメイン料理を1品提案してください。\n使いたい材料：${ingInput}\n`
+    : `夕食のメイン料理を1品提案してください。\n`;
+  const prompt=`${introLine}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度、野菜類も必要最小限）。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。材料は1行につき1つだけとし、必ず改行で区切ってください（スペースで並べて1行にまとめないでください）。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
   let copied=false;
   try{
     await navigator.clipboard.writeText(prompt);
@@ -3051,6 +3064,7 @@ function randomizeDays(cookDays){
   renderAdminDayContent();
 }
 // ===================== PAST / FUTURE SCREENS =====================
+// ★V2.59.0新設：過去の献立を材料名で検索できるようにする（週内のいずれかの主菜・副菜・サラダの材料/名前に部分一致するものだけ表示）
 function renderPast(){
   const today=new Date();today.setHours(0,0,0,0);
   // descending: most recent past first (closest to today at top)
@@ -3059,12 +3073,40 @@ function renderPast(){
     const we=new Date(k+'T00:00:00');we.setDate(we.getDate()+6);
     return we<today;
   });
+  const query=(document.getElementById('past-ing-search')?.value||'').trim();
+  let filteredKeys=pastKeys;
+  const matchInfo={};
+  if(query){
+    filteredKeys=[];
+    pastKeys.forEach(k=>{
+      const wd=DB.weeks[k];
+      const hits=[];
+      DAYS.forEach(d=>{
+        const day=wd.menus?.[d];
+        if(!day)return;
+        (day.dishes||[]).forEach(dish=>{
+          (dish.ingredients||[]).forEach(ing=>{
+            if(ing.n&&ing.n.includes(query))hits.push({day:d,menu:dish.menu||'（名称未設定）',ingName:ing.n});
+          });
+        });
+        (day.sides||[]).forEach(s=>{
+          if(s.name&&s.name.includes(query))hits.push({day:d,menu:s.type==='サラダ'?'サラダ':'副菜',ingName:s.name});
+        });
+      });
+      if(hits.length){filteredKeys.push(k);matchInfo[k]=hits;}
+    });
+  }
   let html='';
-  if(pastKeys.length===0) html='<p style="padding:20px;color:var(--gray);text-align:center">過去の献立はありません</p>';
-  pastKeys.forEach(k=>{
+  if(filteredKeys.length===0){
+    html=query
+      ?`<p style="padding:20px;color:var(--gray);text-align:center">「${esc(query)}」を含む過去の献立が見つかりません</p>`
+      :'<p style="padding:20px;color:var(--gray);text-align:center">過去の献立はありません</p>';
+  }
+  filteredKeys.forEach(k=>{
     const cookDays=DAYS.filter(d=>DB.weeks[k]?.menus?.[d]?.cooking).join('・');
+    const hitsHtml=(query&&matchInfo[k])?`<div style="font-size:12px;color:var(--amber);margin-top:2px">${matchInfo[k].map(h=>`${h.day}: ${esc(h.menu)}（${esc(h.ingName)}）`).join('　')}</div>`:'';
     html+=`<div class="archive-week-row" onclick="go('week',{weekKey:'${k}',weekTab:'menu',weekDay:'月'})">
-      <div><div class="label">${getWeekLabel(k)}</div>${cookDays?`<div style="font-size:12px;color:var(--gray);margin-top:2px">調理日: ${cookDays}</div>`:''}</div>
+      <div style="flex:1"><div class="label">${getWeekLabel(k)}</div>${cookDays?`<div style="font-size:12px;color:var(--gray);margin-top:2px">調理日: ${cookDays}</div>`:''}${hitsHtml}</div>
       <span style="color:var(--gray)">›</span>
     </div>`;
   });
