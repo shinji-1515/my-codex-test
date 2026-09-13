@@ -417,8 +417,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.59.0（2026-09-06 GPTプロンプトの矛盾修正・過去献立の材料検索を追加）
+// 夕食献立管理アプリ V2.60.0（2026-09-13 料理編集画面で材料単体を削除できるように追加）
 // 変更履歴（Changelog）
+// V2.60.0:
+//  [BI-1] removeIngredient()を新設し、料理編集画面（renderDishEditBlock）の各材料行に「✕」削除ボタンを追加。従来は材料単体を消す手段がなく、料理ごと削除して作り直す必要があった。プリセット編集画面（removePeIng）には既にあった機能を、週の献立編集画面にも揃えた
 // V2.59.0:
 //  [BH-1] startGptGenerate()のプロンプトを点検し2点修正。①「使いたい材料」が未入力の場合に「以下の材料を使った」という矛盾した書き出しになっていたのを、材料指定の有無で文言を分岐するよう修正。②直前のV2.58.0で改行なし1行返却による登録不可バグが実際に発生したため、パース側の耐性向上だけでなくプロンプト自体にも「材料は1行につき1つ、必ず改行で区切ってください」という明示指示を追加し、再発を抑制
 //  [BH-2] 過去の献立画面（renderPast()）に材料名検索欄を新設。入力した材料名を含む主菜・副菜・サラダを持つ週だけに絞り込んで表示し、該当曜日・料理名・材料名をハイライト表示するようにした
@@ -587,7 +589,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.59.0';
+const APP_VERSION='V2.60.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2088,6 +2090,7 @@ function renderDishEditBlock(dish,di){
     return `<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
     <input class="form-input" style="flex:2" placeholder="材料名" value="${esc(ing.n)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].n=this.value">
     <input class="form-input" style="flex:1" placeholder="${_p}人分の量" value="${esc(curVal)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].${fieldKey}=this.value">
+    <button onclick="removeIngredient(${di},${ii})" title="この材料を削除" style="flex-shrink:0;background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;width:32px;height:32px;font-size:16px;line-height:1;cursor:pointer">✕</button>
   </div>`;}).join('');
 
   return `<div class="dish-edit-block">
@@ -2113,6 +2116,11 @@ function renderDishEditBlock(dish,di){
 
 function addIngredient(di){
   awDayState.days[awDayState.day].dishes[di].ingredients.push({n:'',a:''});
+  renderAdminDayContent();
+}
+// ★V2.60.0新設：材料単体を削除できるようにする（従来は料理ごと削除するしか方法がなかった）
+function removeIngredient(di,ii){
+  awDayState.days[awDayState.day].dishes[di].ingredients.splice(ii,1);
   renderAdminDayContent();
 }
 // ★V2.21.0新設：副菜・サラダをメイン料理の編集ブロックと同じ見た目（見出し＋プリセットボタン＋全幅入力欄）で表示する
