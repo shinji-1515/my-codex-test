@@ -389,6 +389,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
       <div class="form-group"><label class="form-label">今週買える魚（任意・カンマ区切りで複数可。未入力なら全メニューから抽選）</label><input class="form-input" type="text" id="aw-available-fish" placeholder="例：さば, たら" oninput="awDayState.availableFish=this.value"></div>
       <button class="btn-secondary" onclick="confirmRandomizeWeek()" style="margin-top:4px">🎲 月火水金を一括ランダム選択</button>
       <button class="btn-secondary" onclick="randomizeOneDay()" style="margin-top:4px">🎲 表示中の曜日のみランダム選択</button>
+      <button class="btn-secondary" onclick="openWeekImportOverlay()" style="margin-top:4px">📥 1週間分をまとめて取り込み（Cowork出力）</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <button id="aw-tab-menu-btn" class="btn-primary" style="flex:1" onclick="setAdminWeekTab('menu')">📅 献立編集</button>
@@ -417,8 +418,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.61.0（2026-09-27 GPT生成の野菜分量を本数・袋数・個数表記に変更）
+// 夕食献立管理アプリ V2.62.0（2026-09-28 Cowork出力の1週間分一括取り込み・前提情報更新）
 // 変更履歴（Changelog）
+// V2.62.0:
+//  [BK-1] 週編集画面に「📥 1週間分をまとめて取り込み」を追加。Coworkが出力する【月曜日】〜形式のテキストをparseWeekImport()で解析し、各曜日の料理・材料・副菜・対象人数を一括反映する（取り込み後に内容確認して保存）
+//  [BK-2] 前提情報・ルール画面の揚げ物をNG→OKに変更し、サラダ不要を追記
 // V2.61.0:
 //  [BJ-1] startGptGenerate()のプロンプトを修正。野菜類はグラム表記ではなく「1/2本」「1袋」「1/3個」のように本数・袋数・個数（分数含む）で記載するよう指示し、出力例にも野菜の記載例を追加
 // V2.60.0:
@@ -591,7 +595,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.61.0';
+const APP_VERSION='V2.62.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1825,13 +1829,14 @@ function renderInfo(){
   <div class="info-section">
     <div class="info-sec-header">🚫 禁止事項</div>
     <div class="info-row"><span class="info-key">生魚</span><span class="info-val"><span class="info-badge red">NG</span> お刺身・なまものは使用不可</span></div>
-    <div class="info-row"><span class="info-key">揚げ物</span><span class="info-val"><span class="info-badge red">NG</span> 揚げる調理は不可</span></div>
     <div class="info-row"><span class="info-key">豚キムチ</span><span class="info-val"><span class="info-badge red">NG</span> 禁止</span></div>
   </div>
   <div class="info-section">
     <div class="info-sec-header">✅ 調理ルール</div>
     <div class="info-row"><span class="info-key">包丁・火</span><span class="info-val"><span class="info-badge green">OK</span> 使用可能</span></div>
     <div class="info-row"><span class="info-key">作り置き</span><span class="info-val"><span class="info-badge green">OK</span> 事前調理可能</span></div>
+    <div class="info-row"><span class="info-key">揚げ物</span><span class="info-val"><span class="info-badge green">OK</span> 揚げる調理も可能</span></div>
+    <div class="info-row"><span class="info-key">サラダ</span><span class="info-val">不要（副菜はレトルト品）</span></div>
   </div>
   <div class="info-section">
     <div class="info-sec-header">📅 曜日別メニュー</div>
@@ -2780,6 +2785,78 @@ function pickRandom(dishIdx){
 // ===================== GPT新規献立生成（V2.48.0新設） =====================
 let awGptGenerateDishIdx=null;
 let awGptGenerateStep=1;
+// ===================== 1週間分まとめて取り込み（V2.62.0新設） =====================
+// Coworkが出力する「【月曜日】料理名:… 材料:… 副菜:…」形式のテキストを解析して週の献立に一括反映する
+function parseWeekImport(raw){
+  const result={};
+  const parts=raw.split(/【\s*([月火水木金土日])曜日?\s*】/);
+  for(let i=1;i<parts.length;i+=2){
+    const d=parts[i];
+    // 次の【買い物リスト】等の見出し以降は対象外
+    const body=parts[i+1].split(/【/)[0];
+    if(/調理なし/.test(body)&&!/料理名[:：]/.test(body)){result[d]={cooking:false,dishes:[],sides:[]};continue;}
+    const dishes=[];
+    const sides=[];
+    body.replace(/副菜[:：]\s*([^\n]+)/g,(_,name)=>{
+      name.trim().split(/[、,／\/]/).map(s=>s.trim()).filter(Boolean).forEach(n=>sides.push({type:'副菜',name:n,search:n}));
+      return '';
+    });
+    const dishTexts=body.replace(/副菜[:：][^\n]*/g,'').split(/料理名[:：]/).slice(1);
+    dishTexts.forEach(t=>{
+      const [headPart,ingPart]=t.split(/材料[:：]/);
+      const head=(headPart||'').trim().split('\n')[0].trim();
+      let target='3人分';
+      if(/父|兄|2人/.test(head))target='父・兄（2人分）';
+      else if(/母|1人/.test(head))target='母（1人分）';
+      const menu=head.replace(/[（(][^）)]*[）)]\s*$/,'').trim();
+      if(!menu)return;
+      const ingredients=[];
+      (ingPart||'').split(/\s+/).map(s=>s.trim()).filter(Boolean).forEach(tok=>{
+        const m=tok.match(/^(.+?)[:：](.+)$/);
+        if(!m)return;
+        // 取り込んだ分量は既に対象人数分の量のため、人数による再計算をしないよう全段に同じ値を入れる
+        const a=m[2].trim();
+        ingredients.push({n:m[1].trim(),a1:a,a2:a,a3:a});
+      });
+      dishes.push({target,menu,time:'',ingredients});
+    });
+    if(dishes.length||sides.length)result[d]={cooking:true,dishes,sides};
+  }
+  return result;
+}
+function openWeekImportOverlay(){
+  let ov=document.getElementById('week-import-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='week-import-overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:8000;background:#fff;display:flex;flex-direction:column;overflow:hidden';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
+      <button onclick="document.getElementById('week-import-overlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--navy);padding:0 4px">←</button>
+      <span style="font-size:17px;font-weight:800;color:var(--navy);flex:1">📥 1週間分をまとめて取り込み</span>
+    </div>
+    <div style="padding:16px;overflow-y:auto;flex:1">
+      <p style="font-size:13px;color:var(--gray);margin-bottom:8px">Coworkの出力（【月曜日】〜【金曜日】の部分）をそのまま貼り付けてください。【買い物リスト】以降は無視されます。取り込んだ曜日の献立は上書きされます。</p>
+      <textarea id="week-import-input" class="form-input" style="min-height:300px;resize:vertical" placeholder="【月曜日】&#10;料理名: ○○（父・兄 2人分）&#10;材料:&#10;豚こま肉:200g&#10;副菜: ○○"></textarea>
+      <button onclick="confirmWeekImport()" style="width:100%;margin-top:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">この内容で取り込む</button>
+    </div>`;
+}
+function confirmWeekImport(){
+  const raw=(document.getElementById('week-import-input')?.value||'').trim();
+  if(!raw){showRatingToast('貼り付け内容が空です');return;}
+  const parsed=parseWeekImport(raw);
+  const days=Object.keys(parsed);
+  if(!days.length){showRatingToast('⚠️ 曜日（【月曜日】など）が見つかりません。書式を確認してください');return;}
+  appConfirm(`${days.join('・')}曜日の献立を上書きします。よろしいですか？`,()=>{
+    days.forEach(d=>{awDayState.days[d]=parsed[d];});
+    document.getElementById('week-import-overlay')?.remove();
+    renderAdminDayTabs();
+    renderAdminDayContent();
+    showRatingToast('✅ 取り込みました。内容を確認して「💾 保存する」を押してください');
+  });
+}
 function openGptGenerateOverlay(di){
   awGptGenerateDishIdx=di;
   awGptGenerateStep=1;
