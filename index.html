@@ -265,7 +265,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 <!-- PAST -->
 <div id="screen-past" class="screen">
   <div class="header"><button class="back-btn" onclick="go('top')">←</button><h1>過去の献立</h1></div>
-  <div class="content no-pad-bottom" id="past-content"></div>
+  <div class="content no-pad-bottom">
+    <div style="padding:8px 0">
+      <input id="past-ing-search" class="form-input" placeholder="🔍 材料名で検索（例：鶏むね肉）" oninput="renderPast()">
+    </div>
+    <div id="past-content"></div>
+  </div>
 </div>
 
 <!-- FUTURE -->
@@ -384,6 +389,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
       <div class="form-group"><label class="form-label">今週買える魚（任意・カンマ区切りで複数可。未入力なら全メニューから抽選）</label><input class="form-input" type="text" id="aw-available-fish" placeholder="例：さば, たら" oninput="awDayState.availableFish=this.value"></div>
       <button class="btn-secondary" onclick="confirmRandomizeWeek()" style="margin-top:4px">🎲 月火水金を一括ランダム選択</button>
       <button class="btn-secondary" onclick="randomizeOneDay()" style="margin-top:4px">🎲 表示中の曜日のみランダム選択</button>
+      <button class="btn-secondary" onclick="openWeekImportOverlay()" style="margin-top:4px">📥 1週間分をまとめて取り込み（Cowork出力）</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <button id="aw-tab-menu-btn" class="btn-primary" style="flex:1" onclick="setAdminWeekTab('menu')">📅 献立編集</button>
@@ -412,8 +418,21 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.58.0（2026-08-30 GPT生成結果が改行なしの1行で返された場合の解析不具合を修正）
+// 夕食献立管理アプリ V2.63.0（2026-09-29 外部AI向けに直近6週サマリー menuapp-recent.json をGistへ同時保存）
 // 変更履歴（Changelog）
+// V2.63.0:
+//  [BL-1] writeGist()でmenuapp-data.json（従来通り）に加え、buildRecentSummary()で作る軽量サマリーmenuapp-recent.jsonを同じGistへ毎回保存。直近6週・新しい順、各日の料理名・主なたんぱく質・味の系統・材料名のみ（分量・買い物情報なし）。20KB超過時は材料を1品8件に絞り、さらに古い週から削る
+//  [BL-2] 保存後のGist APIレスポンスのfilesに両ファイルが含まれるか確認し、欠けていれば警告を表示
+// V2.62.0:
+//  [BK-1] 週編集画面に「📥 1週間分をまとめて取り込み」を追加。Coworkが出力する【月曜日】〜形式のテキストをparseWeekImport()で解析し、各曜日の料理・材料・副菜・対象人数を一括反映する（取り込み後に内容確認して保存）
+//  [BK-2] 前提情報・ルール画面の揚げ物をNG→OKに変更し、サラダ不要を追記
+// V2.61.0:
+//  [BJ-1] startGptGenerate()のプロンプトを修正。野菜類はグラム表記ではなく「1/2本」「1袋」「1/3個」のように本数・袋数・個数（分数含む）で記載するよう指示し、出力例にも野菜の記載例を追加
+// V2.60.0:
+//  [BI-1] removeIngredient()を新設し、料理編集画面（renderDishEditBlock）の各材料行に「✕」削除ボタンを追加。従来は材料単体を消す手段がなく、料理ごと削除して作り直す必要があった。プリセット編集画面（removePeIng）には既にあった機能を、週の献立編集画面にも揃えた
+// V2.59.0:
+//  [BH-1] startGptGenerate()のプロンプトを点検し2点修正。①「使いたい材料」が未入力の場合に「以下の材料を使った」という矛盾した書き出しになっていたのを、材料指定の有無で文言を分岐するよう修正。②直前のV2.58.0で改行なし1行返却による登録不可バグが実際に発生したため、パース側の耐性向上だけでなくプロンプト自体にも「材料は1行につき1つ、必ず改行で区切ってください」という明示指示を追加し、再発を抑制
+//  [BH-2] 過去の献立画面（renderPast()）に材料名検索欄を新設。入力した材料名を含む主菜・副菜・サラダを持つ週だけに絞り込んで表示し、該当曜日・料理名・材料名をハイライト表示するようにした
 // V2.58.0:
 //  [BG-1] confirmGptGenerate()がChatGPTの回答を必ず改行区切り前提で解析していたため、ChatGPT側が「料理名: ○○ 材料: 名前:量 名前:量...」のように改行なしの1行で返してきた場合に材料が1件も検出されず登録できない不具合を修正。「材料:」「料理名:」の位置を基準に料理名・材料セクションを切り出し、材料は改行・空白どちらの区切りでも解析できるようにした
 // V2.57.0:
@@ -579,7 +598,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.58.0';
+const APP_VERSION='V2.63.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -1813,13 +1832,14 @@ function renderInfo(){
   <div class="info-section">
     <div class="info-sec-header">🚫 禁止事項</div>
     <div class="info-row"><span class="info-key">生魚</span><span class="info-val"><span class="info-badge red">NG</span> お刺身・なまものは使用不可</span></div>
-    <div class="info-row"><span class="info-key">揚げ物</span><span class="info-val"><span class="info-badge red">NG</span> 揚げる調理は不可</span></div>
     <div class="info-row"><span class="info-key">豚キムチ</span><span class="info-val"><span class="info-badge red">NG</span> 禁止</span></div>
   </div>
   <div class="info-section">
     <div class="info-sec-header">✅ 調理ルール</div>
     <div class="info-row"><span class="info-key">包丁・火</span><span class="info-val"><span class="info-badge green">OK</span> 使用可能</span></div>
     <div class="info-row"><span class="info-key">作り置き</span><span class="info-val"><span class="info-badge green">OK</span> 事前調理可能</span></div>
+    <div class="info-row"><span class="info-key">揚げ物</span><span class="info-val"><span class="info-badge green">OK</span> 揚げる調理も可能</span></div>
+    <div class="info-row"><span class="info-key">サラダ</span><span class="info-val">不要（副菜はレトルト品）</span></div>
   </div>
   <div class="info-section">
     <div class="info-sec-header">📅 曜日別メニュー</div>
@@ -2080,6 +2100,7 @@ function renderDishEditBlock(dish,di){
     return `<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
     <input class="form-input" style="flex:2" placeholder="材料名" value="${esc(ing.n)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].n=this.value">
     <input class="form-input" style="flex:1" placeholder="${_p}人分の量" value="${esc(curVal)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].${fieldKey}=this.value">
+    <button onclick="removeIngredient(${di},${ii})" title="この材料を削除" style="flex-shrink:0;background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;width:32px;height:32px;font-size:16px;line-height:1;cursor:pointer">✕</button>
   </div>`;}).join('');
 
   return `<div class="dish-edit-block">
@@ -2105,6 +2126,11 @@ function renderDishEditBlock(dish,di){
 
 function addIngredient(di){
   awDayState.days[awDayState.day].dishes[di].ingredients.push({n:'',a:''});
+  renderAdminDayContent();
+}
+// ★V2.60.0新設：材料単体を削除できるようにする（従来は料理ごと削除するしか方法がなかった）
+function removeIngredient(di,ii){
+  awDayState.days[awDayState.day].dishes[di].ingredients.splice(ii,1);
   renderAdminDayContent();
 }
 // ★V2.21.0新設：副菜・サラダをメイン料理の編集ブロックと同じ見た目（見出し＋プリセットボタン＋全幅入力欄）で表示する
@@ -2762,6 +2788,78 @@ function pickRandom(dishIdx){
 // ===================== GPT新規献立生成（V2.48.0新設） =====================
 let awGptGenerateDishIdx=null;
 let awGptGenerateStep=1;
+// ===================== 1週間分まとめて取り込み（V2.62.0新設） =====================
+// Coworkが出力する「【月曜日】料理名:… 材料:… 副菜:…」形式のテキストを解析して週の献立に一括反映する
+function parseWeekImport(raw){
+  const result={};
+  const parts=raw.split(/【\s*([月火水木金土日])曜日?\s*】/);
+  for(let i=1;i<parts.length;i+=2){
+    const d=parts[i];
+    // 次の【買い物リスト】等の見出し以降は対象外
+    const body=parts[i+1].split(/【/)[0];
+    if(/調理なし/.test(body)&&!/料理名[:：]/.test(body)){result[d]={cooking:false,dishes:[],sides:[]};continue;}
+    const dishes=[];
+    const sides=[];
+    body.replace(/副菜[:：]\s*([^\n]+)/g,(_,name)=>{
+      name.trim().split(/[、,／\/]/).map(s=>s.trim()).filter(Boolean).forEach(n=>sides.push({type:'副菜',name:n,search:n}));
+      return '';
+    });
+    const dishTexts=body.replace(/副菜[:：][^\n]*/g,'').split(/料理名[:：]/).slice(1);
+    dishTexts.forEach(t=>{
+      const [headPart,ingPart]=t.split(/材料[:：]/);
+      const head=(headPart||'').trim().split('\n')[0].trim();
+      let target='3人分';
+      if(/父|兄|2人/.test(head))target='父・兄（2人分）';
+      else if(/母|1人/.test(head))target='母（1人分）';
+      const menu=head.replace(/[（(][^）)]*[）)]\s*$/,'').trim();
+      if(!menu)return;
+      const ingredients=[];
+      (ingPart||'').split(/\s+/).map(s=>s.trim()).filter(Boolean).forEach(tok=>{
+        const m=tok.match(/^(.+?)[:：](.+)$/);
+        if(!m)return;
+        // 取り込んだ分量は既に対象人数分の量のため、人数による再計算をしないよう全段に同じ値を入れる
+        const a=m[2].trim();
+        ingredients.push({n:m[1].trim(),a1:a,a2:a,a3:a});
+      });
+      dishes.push({target,menu,time:'',ingredients});
+    });
+    if(dishes.length||sides.length)result[d]={cooking:true,dishes,sides};
+  }
+  return result;
+}
+function openWeekImportOverlay(){
+  let ov=document.getElementById('week-import-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='week-import-overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:8000;background:#fff;display:flex;flex-direction:column;overflow:hidden';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
+      <button onclick="document.getElementById('week-import-overlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--navy);padding:0 4px">←</button>
+      <span style="font-size:17px;font-weight:800;color:var(--navy);flex:1">📥 1週間分をまとめて取り込み</span>
+    </div>
+    <div style="padding:16px;overflow-y:auto;flex:1">
+      <p style="font-size:13px;color:var(--gray);margin-bottom:8px">Coworkの出力（【月曜日】〜【金曜日】の部分）をそのまま貼り付けてください。【買い物リスト】以降は無視されます。取り込んだ曜日の献立は上書きされます。</p>
+      <textarea id="week-import-input" class="form-input" style="min-height:300px;resize:vertical" placeholder="【月曜日】&#10;料理名: ○○（父・兄 2人分）&#10;材料:&#10;豚こま肉:200g&#10;副菜: ○○"></textarea>
+      <button onclick="confirmWeekImport()" style="width:100%;margin-top:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer">この内容で取り込む</button>
+    </div>`;
+}
+function confirmWeekImport(){
+  const raw=(document.getElementById('week-import-input')?.value||'').trim();
+  if(!raw){showRatingToast('貼り付け内容が空です');return;}
+  const parsed=parseWeekImport(raw);
+  const days=Object.keys(parsed);
+  if(!days.length){showRatingToast('⚠️ 曜日（【月曜日】など）が見つかりません。書式を確認してください');return;}
+  appConfirm(`${days.join('・')}曜日の献立を上書きします。よろしいですか？`,()=>{
+    days.forEach(d=>{awDayState.days[d]=parsed[d];});
+    document.getElementById('week-import-overlay')?.remove();
+    renderAdminDayTabs();
+    renderAdminDayContent();
+    showRatingToast('✅ 取り込みました。内容を確認して「💾 保存する」を押してください');
+  });
+}
 function openGptGenerateOverlay(di){
   awGptGenerateDishIdx=di;
   awGptGenerateStep=1;
@@ -2822,7 +2920,12 @@ async function startGptGenerate(){
   const ingInput=(document.getElementById('gpt-gen-ing-input')?.value||'').trim();
   // ★V2.54.0修正：分量が多くなりがちな傾向を抑えるため控えめな目安を追記。ただし出力例の表記は
   // confirmGptGenerate()側の「（1人前）」除去用正規表現に合わせ、末尾は必ず「（1人前）」のみにする
-  const prompt=`以下の材料を使った夕食のメイン料理を1品提案してください。\n${ingInput?`使いたい材料：${ingInput}\n`:''}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度、野菜類も必要最小限）。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n調味料名:適量`;
+  // ★V2.59.0修正：①使いたい材料が未入力の場合に「以下の材料を使った」という矛盾した書き出しになっていたのを修正
+  // ②改行なしの1行で返されて登録できない不具合が実際に発生したため、各項目を必ず改行で区切るよう明示的に指示を追加
+  const introLine=ingInput
+    ? `以下の材料を使った夕食のメイン料理を1品提案してください。\n使いたい材料：${ingInput}\n`
+    : `夕食のメイン料理を1品提案してください。\n`;
+  const prompt=`${introLine}指定した材料以外に必要なものを自由に追加して構いません。\n材料の分量は必ず「1人前」の量で記載してください。一般的なレシピサイトの分量は多すぎることが多いため、実際の家庭の1人前としては控えめ・少なめの分量にしてください（目安：肉・魚などの主菜となる食材は80〜120g程度）。野菜類はグラム表記ではなく「1/2本」「1袋」「1/3個」のように、本数・袋数・個数を分数も使って表してください。ただし調味料（醤油・みりん・塩・こしょう・砂糖・酒・油・だし等）の分量は必ず「適量」としてください。\n出力は必ず次の形式のみで、他の説明文は一切書かないでください。材料は1行につき1つだけとし、必ず改行で区切ってください（スペースで並べて1行にまとめないでください）。\n\n料理名: ○○○\n材料:\n材料名:分量（1人前）\n野菜名:1/2本（1人前）\n調味料名:適量`;
   let copied=false;
   try{
     await navigator.clipboard.writeText(prompt);
@@ -3051,6 +3154,7 @@ function randomizeDays(cookDays){
   renderAdminDayContent();
 }
 // ===================== PAST / FUTURE SCREENS =====================
+// ★V2.59.0新設：過去の献立を材料名で検索できるようにする（週内のいずれかの主菜・副菜・サラダの材料/名前に部分一致するものだけ表示）
 function renderPast(){
   const today=new Date();today.setHours(0,0,0,0);
   // descending: most recent past first (closest to today at top)
@@ -3059,12 +3163,40 @@ function renderPast(){
     const we=new Date(k+'T00:00:00');we.setDate(we.getDate()+6);
     return we<today;
   });
+  const query=(document.getElementById('past-ing-search')?.value||'').trim();
+  let filteredKeys=pastKeys;
+  const matchInfo={};
+  if(query){
+    filteredKeys=[];
+    pastKeys.forEach(k=>{
+      const wd=DB.weeks[k];
+      const hits=[];
+      DAYS.forEach(d=>{
+        const day=wd.menus?.[d];
+        if(!day)return;
+        (day.dishes||[]).forEach(dish=>{
+          (dish.ingredients||[]).forEach(ing=>{
+            if(ing.n&&ing.n.includes(query))hits.push({day:d,menu:dish.menu||'（名称未設定）',ingName:ing.n});
+          });
+        });
+        (day.sides||[]).forEach(s=>{
+          if(s.name&&s.name.includes(query))hits.push({day:d,menu:s.type==='サラダ'?'サラダ':'副菜',ingName:s.name});
+        });
+      });
+      if(hits.length){filteredKeys.push(k);matchInfo[k]=hits;}
+    });
+  }
   let html='';
-  if(pastKeys.length===0) html='<p style="padding:20px;color:var(--gray);text-align:center">過去の献立はありません</p>';
-  pastKeys.forEach(k=>{
+  if(filteredKeys.length===0){
+    html=query
+      ?`<p style="padding:20px;color:var(--gray);text-align:center">「${esc(query)}」を含む過去の献立が見つかりません</p>`
+      :'<p style="padding:20px;color:var(--gray);text-align:center">過去の献立はありません</p>';
+  }
+  filteredKeys.forEach(k=>{
     const cookDays=DAYS.filter(d=>DB.weeks[k]?.menus?.[d]?.cooking).join('・');
+    const hitsHtml=(query&&matchInfo[k])?`<div style="font-size:12px;color:var(--amber);margin-top:2px">${matchInfo[k].map(h=>`${h.day}: ${esc(h.menu)}（${esc(h.ingName)}）`).join('　')}</div>`:'';
     html+=`<div class="archive-week-row" onclick="go('week',{weekKey:'${k}',weekTab:'menu',weekDay:'月'})">
-      <div><div class="label">${getWeekLabel(k)}</div>${cookDays?`<div style="font-size:12px;color:var(--gray);margin-top:2px">調理日: ${cookDays}</div>`:''}</div>
+      <div style="flex:1"><div class="label">${getWeekLabel(k)}</div>${cookDays?`<div style="font-size:12px;color:var(--gray);margin-top:2px">調理日: ${cookDays}</div>`:''}${hitsHtml}</div>
       <span style="color:var(--gray)">›</span>
     </div>`;
   });
@@ -3716,6 +3848,58 @@ async function fetchGistCurrent(){
     return JSON.parse(file.content)||{version:1};
   }catch(e){return null;}
 }
+// ★V2.63.0新設：外部AIが直近の献立を読めるよう、直近6週分の軽量サマリー（menuapp-recent.json）を作る
+const RECENT_FISH=[['さば',/さば|サバ|鯖/],['鮭',/鮭|さけ|サケ|サーモン/],['ぶり',/ぶり|ブリ|鰤/],['たら',/たら(?!こ)|タラ|鱈/],['あじ',/あじ|アジ|鯵/],['さんま',/さんま|サンマ|秋刀魚/],['いわし',/いわし|イワシ|鰯/],['かれい',/かれい|カレイ|鰈/],['ほっけ',/ほっけ|ホッケ/],['めかじき',/かじき|カジキ/],['まぐろ',/まぐろ|マグロ|鮪/],['鯛',/鯛|たい(?=の|切)/],['いか',/いか|イカ/],['たこ',/たこ(?!焼)|タコ/],['ほたて',/ほたて|ホタテ|帆立/],['あさり',/あさり|アサリ/],['しらす',/しらす|シラス/]];
+function getRecentProtein(dish){
+  const text=(dish.menu||'')+' '+(dish.ingredients||[]).map(i=>i.n||'').join(' ');
+  const labels=dish.labels||[];
+  if(labels.includes('海老')||/えび|エビ|海老/.test(text))return 'エビ';
+  const fish=RECENT_FISH.find(([,re])=>re.test(text));
+  if(fish)return fish[0];
+  if(labels.includes('魚'))return '魚';
+  if(labels.includes('牛')||/牛/.test(text))return '牛';
+  if(labels.includes('豚')||/豚/.test(text))return '豚';
+  if(labels.includes('鶏')||/鶏|チキン|ささみ/.test(text))return '鶏';
+  if(/ひき肉|挽肉|ミンチ/.test(text))return '合いびき';
+  return 'なし';
+}
+// 20KBを超える場合は、材料を1品8件までに絞り、それでも超えれば古い週から削る
+function buildRecentSummary(db){
+  const LIMIT=20000;
+  const bytes=o=>new TextEncoder().encode(JSON.stringify(o)).length;
+  let s=_buildRecentSummary(db,6,null);
+  if(bytes(s)<=LIMIT)return s;
+  for(let w=6;w>=1;w--){
+    s=_buildRecentSummary(db,w,8);
+    if(bytes(s)<=LIMIT)return s;
+  }
+  return s;
+}
+function _buildRecentSummary(db,weekCount,maxIngs){
+  const weeks=(db&&db.weeks)||{};
+  const keys=Object.keys(weeks).sort((a,b)=>a<b?1:-1).slice(0,weekCount);
+  return {
+    generatedAt:new Date().toISOString(),
+    note:`直近${keys.length}週分の献立サマリー（週キーは月曜日の日付、新しい順）。分量・買い物情報は含まない`,
+    weeks:keys.map(k=>{
+      const days={};
+      DAYS.forEach(d=>{
+        const day=weeks[k].menus?.[d];
+        if(!day||!day.cooking)return;
+        const list=(day.dishes||[]).filter(x=>x.menu&&x.menu.trim()).map(x=>{
+          const o={menu:x.menu.trim(),protein:getRecentProtein(x)};
+          const fam=getFlavorFamily(x.menu);
+          if(fam)o.flavor=fam;
+          const ings=(x.ingredients||[]).map(i=>(i.n||'').trim()).filter(Boolean);
+          o.ingredients=maxIngs?ings.slice(0,maxIngs):ings;
+          return o;
+        });
+        if(list.length)days[d]=list;
+      });
+      return {week:k,days};
+    })
+  };
+}
 async function writeGist(payload,notify){
   const gistId=getGistId();
   const pat=localStorage.getItem('menuApp_gistPat');
@@ -3723,12 +3907,20 @@ async function writeGist(payload,notify){
   if(!gistId){if(notify)showRatingToast('⚠️ Gist IDが未設定のためWebに保存されません');return false;}
   if(!pat){if(notify)showRatingToast('⚠️ PAT未設定のためWebに保存されません（設定画面で入力してください）');return false;}
   try{
+    const files={'menuapp-data.json':{content:JSON.stringify(payload,null,2)}};
+    // ★V2.63.0：外部AI向けの軽量サマリーも同じGistに毎回保存する（menuapp-data.jsonは互換性のため従来通り）
+    if(payload&&payload.menuApp_v4)files['menuapp-recent.json']={content:JSON.stringify(buildRecentSummary(payload.menuApp_v4))};
     const res=await fetch(`https://api.github.com/gists/${gistId}`,{
       method:'PATCH',
       headers:{Authorization:`token ${pat}`,'Content-Type':'application/json'},
-      body:JSON.stringify({files:{'menuapp-data.json':{content:JSON.stringify(payload,null,2)}}})
+      body:JSON.stringify({files})
     });
     if(!res.ok){if(notify)showRatingToast('⚠️ Web保存失敗（'+res.status+'）');return false;}
+    try{
+      const saved=await res.json();
+      const missing=Object.keys(files).filter(f=>!(saved.files&&saved.files[f]));
+      if(missing.length){console.warn('Gist保存後に見つからないファイル',missing);if(notify)showRatingToast('⚠️ 一部ファイルが保存されていません：'+missing.join(', '));}
+    }catch(e){}
     return true;
   }catch(e){console.warn('Gist push failed',e);if(notify)showRatingToast('⚠️ Web保存エラー：ネットワークを確認してください');return false;}
 }
