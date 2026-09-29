@@ -418,8 +418,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.62.0（2026-09-28 Cowork出力の1週間分一括取り込み・前提情報更新）
+// 夕食献立管理アプリ V2.63.0（2026-09-29 外部AI向けに直近6週サマリー menuapp-recent.json をGistへ同時保存）
 // 変更履歴（Changelog）
+// V2.63.0:
+//  [BL-1] writeGist()でmenuapp-data.json（従来通り）に加え、buildRecentSummary()で作る軽量サマリーmenuapp-recent.jsonを同じGistへ毎回保存。直近6週・新しい順、各日の料理名・主なたんぱく質・味の系統・材料名のみ（分量・買い物情報なし）。20KB超過時は材料を1品8件に絞り、さらに古い週から削る
+//  [BL-2] 保存後のGist APIレスポンスのfilesに両ファイルが含まれるか確認し、欠けていれば警告を表示
 // V2.62.0:
 //  [BK-1] 週編集画面に「📥 1週間分をまとめて取り込み」を追加。Coworkが出力する【月曜日】〜形式のテキストをparseWeekImport()で解析し、各曜日の料理・材料・副菜・対象人数を一括反映する（取り込み後に内容確認して保存）
 //  [BK-2] 前提情報・ルール画面の揚げ物をNG→OKに変更し、サラダ不要を追記
@@ -595,7 +598,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.62.0';
+const APP_VERSION='V2.63.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -3845,6 +3848,58 @@ async function fetchGistCurrent(){
     return JSON.parse(file.content)||{version:1};
   }catch(e){return null;}
 }
+// ★V2.63.0新設：外部AIが直近の献立を読めるよう、直近6週分の軽量サマリー（menuapp-recent.json）を作る
+const RECENT_FISH=[['さば',/さば|サバ|鯖/],['鮭',/鮭|さけ|サケ|サーモン/],['ぶり',/ぶり|ブリ|鰤/],['たら',/たら(?!こ)|タラ|鱈/],['あじ',/あじ|アジ|鯵/],['さんま',/さんま|サンマ|秋刀魚/],['いわし',/いわし|イワシ|鰯/],['かれい',/かれい|カレイ|鰈/],['ほっけ',/ほっけ|ホッケ/],['めかじき',/かじき|カジキ/],['まぐろ',/まぐろ|マグロ|鮪/],['鯛',/鯛|たい(?=の|切)/],['いか',/いか|イカ/],['たこ',/たこ(?!焼)|タコ/],['ほたて',/ほたて|ホタテ|帆立/],['あさり',/あさり|アサリ/],['しらす',/しらす|シラス/]];
+function getRecentProtein(dish){
+  const text=(dish.menu||'')+' '+(dish.ingredients||[]).map(i=>i.n||'').join(' ');
+  const labels=dish.labels||[];
+  if(labels.includes('海老')||/えび|エビ|海老/.test(text))return 'エビ';
+  const fish=RECENT_FISH.find(([,re])=>re.test(text));
+  if(fish)return fish[0];
+  if(labels.includes('魚'))return '魚';
+  if(labels.includes('牛')||/牛/.test(text))return '牛';
+  if(labels.includes('豚')||/豚/.test(text))return '豚';
+  if(labels.includes('鶏')||/鶏|チキン|ささみ/.test(text))return '鶏';
+  if(/ひき肉|挽肉|ミンチ/.test(text))return '合いびき';
+  return 'なし';
+}
+// 20KBを超える場合は、材料を1品8件までに絞り、それでも超えれば古い週から削る
+function buildRecentSummary(db){
+  const LIMIT=20000;
+  const bytes=o=>new TextEncoder().encode(JSON.stringify(o)).length;
+  let s=_buildRecentSummary(db,6,null);
+  if(bytes(s)<=LIMIT)return s;
+  for(let w=6;w>=1;w--){
+    s=_buildRecentSummary(db,w,8);
+    if(bytes(s)<=LIMIT)return s;
+  }
+  return s;
+}
+function _buildRecentSummary(db,weekCount,maxIngs){
+  const weeks=(db&&db.weeks)||{};
+  const keys=Object.keys(weeks).sort((a,b)=>a<b?1:-1).slice(0,weekCount);
+  return {
+    generatedAt:new Date().toISOString(),
+    note:`直近${keys.length}週分の献立サマリー（週キーは月曜日の日付、新しい順）。分量・買い物情報は含まない`,
+    weeks:keys.map(k=>{
+      const days={};
+      DAYS.forEach(d=>{
+        const day=weeks[k].menus?.[d];
+        if(!day||!day.cooking)return;
+        const list=(day.dishes||[]).filter(x=>x.menu&&x.menu.trim()).map(x=>{
+          const o={menu:x.menu.trim(),protein:getRecentProtein(x)};
+          const fam=getFlavorFamily(x.menu);
+          if(fam)o.flavor=fam;
+          const ings=(x.ingredients||[]).map(i=>(i.n||'').trim()).filter(Boolean);
+          o.ingredients=maxIngs?ings.slice(0,maxIngs):ings;
+          return o;
+        });
+        if(list.length)days[d]=list;
+      });
+      return {week:k,days};
+    })
+  };
+}
 async function writeGist(payload,notify){
   const gistId=getGistId();
   const pat=localStorage.getItem('menuApp_gistPat');
@@ -3852,12 +3907,20 @@ async function writeGist(payload,notify){
   if(!gistId){if(notify)showRatingToast('⚠️ Gist IDが未設定のためWebに保存されません');return false;}
   if(!pat){if(notify)showRatingToast('⚠️ PAT未設定のためWebに保存されません（設定画面で入力してください）');return false;}
   try{
+    const files={'menuapp-data.json':{content:JSON.stringify(payload,null,2)}};
+    // ★V2.63.0：外部AI向けの軽量サマリーも同じGistに毎回保存する（menuapp-data.jsonは互換性のため従来通り）
+    if(payload&&payload.menuApp_v4)files['menuapp-recent.json']={content:JSON.stringify(buildRecentSummary(payload.menuApp_v4))};
     const res=await fetch(`https://api.github.com/gists/${gistId}`,{
       method:'PATCH',
       headers:{Authorization:`token ${pat}`,'Content-Type':'application/json'},
-      body:JSON.stringify({files:{'menuapp-data.json':{content:JSON.stringify(payload,null,2)}}})
+      body:JSON.stringify({files})
     });
     if(!res.ok){if(notify)showRatingToast('⚠️ Web保存失敗（'+res.status+'）');return false;}
+    try{
+      const saved=await res.json();
+      const missing=Object.keys(files).filter(f=>!(saved.files&&saved.files[f]));
+      if(missing.length){console.warn('Gist保存後に見つからないファイル',missing);if(notify)showRatingToast('⚠️ 一部ファイルが保存されていません：'+missing.join(', '));}
+    }catch(e){}
     return true;
   }catch(e){console.warn('Gist push failed',e);if(notify)showRatingToast('⚠️ Web保存エラー：ネットワークを確認してください');return false;}
 }
