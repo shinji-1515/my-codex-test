@@ -422,8 +422,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.66.0（2026-10-04 月ごとの過去の献立に副菜・サラダも表示）
+// 夕食献立管理アプリ V2.67.0（2026-10-04 編集画面で入力した分量が人数倍される不具合を修正）
 // 変更履歴（Changelog）
+// V2.67.0:
+//  [BP-1] 料理編集画面で分量を入力すると、単一値(a)の材料は1人分とみなされ人数倍されていた不具合を修正（2人分で「2袋」→手配が4袋、3人分で6袋）。setAwIngAmount()を新設し、入力値をそのまま対象人数の量として保存。「＋材料追加」の新規材料も人数別形式で作成
 // V2.66.0:
 //  [BO-1] 過去の献立の月ごと表示で、各曜日の主菜の後ろに副菜（🍱）・サラダ（🥗）も表示。材料検索で一致した副菜・サラダ名も強調
 // V2.65.0:
@@ -609,7 +611,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.66.0';
+const APP_VERSION='V2.67.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2107,10 +2109,10 @@ function renderDishEditBlock(dish,di){
   const ings=(dish.ingredients||[]).map((ing,ii)=>{
     const hasMulti=ing.a1!=null;
     const fieldKey=hasMulti?('a'+_p):'a';
-    const curVal=hasMulti?(ing[fieldKey]!=null?ing[fieldKey]:ing.a1):ing.a;
+    const curVal=hasMulti?(ing[fieldKey]!=null?ing[fieldKey]:ing.a1):getIngAmount(ing,_p);
     return `<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
     <input class="form-input" style="flex:2" placeholder="材料名" value="${esc(ing.n)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].n=this.value">
-    <input class="form-input" style="flex:1" placeholder="${_p}人分の量" value="${esc(curVal)}" oninput="awDayState.days[awDayState.day].dishes[${di}].ingredients[${ii}].${fieldKey}=this.value">
+    <input class="form-input" style="flex:1" placeholder="${_p}人分の量" value="${esc(curVal)}" oninput="setAwIngAmount(${di},${ii},${_p},this.value)">
     <button onclick="removeIngredient(${di},${ii})" title="この材料を削除" style="flex-shrink:0;background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;width:32px;height:32px;font-size:16px;line-height:1;cursor:pointer">✕</button>
   </div>`;}).join('');
 
@@ -2136,8 +2138,18 @@ function renderDishEditBlock(dish,di){
 }
 
 function addIngredient(di){
-  awDayState.days[awDayState.day].dishes[di].ingredients.push({n:'',a:''});
+  awDayState.days[awDayState.day].dishes[di].ingredients.push({n:'',a1:'',a2:'',a3:''});
   renderAdminDayContent();
+}
+// ★V2.67.0修正：編集画面で入力した分量は「表示中の人数分の量」としてそのまま使う。
+// 単一値(a)の材料は1人分とみなして人数倍されていたため（2人分で2袋→4袋、3人分→6袋）、
+// 入力時に人数別(a1/a2/a3)形式へ変換し、全人数に同じ値を入れて掛け算されないようにする
+function setAwIngAmount(di,ii,persons,val){
+  const ing=awDayState.days[awDayState.day].dishes[di].ingredients[ii];
+  if(ing.a1==null){ing.a1=val;ing.a2=val;ing.a3=val;delete ing.a;return;}
+  ing['a'+persons]=val;
+  // 新規追加など未入力の人数欄は同じ値で埋め、後から対象人数を変えても空にならないようにする
+  ['a1','a2','a3'].forEach(k=>{if(!ing[k])ing[k]=val;});
 }
 // ★V2.60.0新設：材料単体を削除できるようにする（従来は料理ごと削除するしか方法がなかった）
 function removeIngredient(di,ii){
