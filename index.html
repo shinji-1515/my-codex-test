@@ -422,8 +422,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.64.0（2026-10-03 プリセットのフィルタをグループ別に改行・過去の献立に月ごと一覧）
+// 夕食献立管理アプリ V2.65.0（2026-10-03 過去の献立に今週も表示）
 // 変更履歴（Changelog）
+// V2.65.0:
+//  [BN-1] 過去の献立に今週（開始済みの週）も含めて表示するよう変更
 // V2.64.0:
 //  [BM-1] プリセット選択のラベルフィルタを、LABEL_GROUPS（主菜・食材・調理法・ジャンル等）ごとに改行して表示。未分類のラベル（ガーリック・トマト等）は「味付け・その他」行にまとめた
 //  [BM-2] 過去の献立に「週ごと／月ごと」切替を追加。月ごと表示では年月見出しの下に各週の曜日別料理名を一覧表示（材料検索と併用可、一致した料理を強調）
@@ -605,7 +607,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.64.0';
+const APP_VERSION='V2.65.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -3173,10 +3175,8 @@ function renderPast(){
   const today=new Date();today.setHours(0,0,0,0);
   // descending: most recent past first (closest to today at top)
   const keys=Object.keys(DB.weeks).sort((a,b)=>b>a?-1:1).reverse();
-  const pastKeys=keys.filter(k=>{
-    const we=new Date(k+'T00:00:00');we.setDate(we.getDate()+6);
-    return we<today;
-  });
+  // ★V2.65.0修正：今週（開始済みの週）も含めて表示する
+  const pastKeys=keys.filter(k=>new Date(k+'T00:00:00')<=today);
   const query=(document.getElementById('past-ing-search')?.value||'').trim();
   let filteredKeys=pastKeys;
   const matchInfo={};
