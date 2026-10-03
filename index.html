@@ -269,6 +269,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
     <div style="padding:8px 0">
       <input id="past-ing-search" class="form-input" placeholder="🔍 材料名で検索（例：鶏むね肉）" oninput="renderPast()">
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="past-mode-week" class="btn-primary" style="flex:1" onclick="pastViewMode='week';renderPast()">週ごと</button>
+      <button id="past-mode-month" class="btn-secondary" style="flex:1" onclick="pastViewMode='month';renderPast()">月ごと</button>
+    </div>
     <div id="past-content"></div>
   </div>
 </div>
@@ -418,8 +422,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.63.0（2026-09-29 外部AI向けに直近6週サマリー menuapp-recent.json をGistへ同時保存）
+// 夕食献立管理アプリ V2.64.0（2026-10-03 プリセットのフィルタをグループ別に改行・過去の献立に月ごと一覧）
 // 変更履歴（Changelog）
+// V2.64.0:
+//  [BM-1] プリセット選択のラベルフィルタを、LABEL_GROUPS（主菜・食材・調理法・ジャンル等）ごとに改行して表示。未分類のラベル（ガーリック・トマト等）は「味付け・その他」行にまとめた
+//  [BM-2] 過去の献立に「週ごと／月ごと」切替を追加。月ごと表示では年月見出しの下に各週の曜日別料理名を一覧表示（材料検索と併用可、一致した料理を強調）
 // V2.63.0:
 //  [BL-1] writeGist()でmenuapp-data.json（従来通り）に加え、buildRecentSummary()で作る軽量サマリーmenuapp-recent.jsonを同じGistへ毎回保存。直近6週・新しい順、各日の料理名・主なたんぱく質・味の系統・材料名のみ（分量・買い物情報なし）。20KB超過時は材料を1品8件に絞り、さらに古い週から削る
 //  [BL-2] 保存後のGist APIレスポンスのfilesに両ファイルが含まれるか確認し、欠けていれば警告を表示
@@ -598,7 +605,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.63.0';
+const APP_VERSION='V2.64.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2323,12 +2330,18 @@ function buildLabelFilterHTML(){
     ? `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 16px;background:#f8f8f8;border-bottom:1px solid var(--border)">${allCrumbs.join('')}</div>`
     : '';
   // 次の選択肢（絞り込み後に存在するラベル）：ラベル名タップで含める、×タップで除外
+  // ★V2.64.0修正：ボタンを探しやすいよう、LABEL_GROUPSのグループごとに改行して表示（未分類は「味付け・その他」）
   const available=getAvailableLabels();
-  const nextBtns=[...available].sort().map(l=>
-    `<button class="preset-cat-btn" style="flex-shrink:0;font-size:12px;padding:4px 6px 4px 10px" onclick="toggleLabel('${esc(l)}')">${esc(l)}<span onclick="event.stopPropagation();toggleExcludeLabel('${esc(l)}')" style="display:inline-block;margin-left:4px;padding:0 4px;color:var(--red);font-weight:800">×</span></button>`
-  ).join('');
-  const nextArea=nextBtns
-    ? `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--border);background:#fff">${nextBtns}</div>`
+  const btn=l=>`<button class="preset-cat-btn" style="flex-shrink:0;font-size:12px;padding:4px 6px 4px 10px" onclick="toggleLabel('${esc(l)}')">${esc(l)}<span onclick="event.stopPropagation();toggleExcludeLabel('${esc(l)}')" style="display:inline-block;margin-left:4px;padding:0 4px;color:var(--red);font-weight:800">×</span></button>`;
+  const grouped=new Set(LABEL_GROUPS.flatMap(g=>g.labels));
+  const groups=[...LABEL_GROUPS,{label:'味付け・その他',labels:[...available].filter(l=>!grouped.has(l)).sort()}];
+  const rows=groups.map(g=>{
+    const ls=g.labels.filter(l=>available.has(l));
+    if(!ls.length)return '';
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--gray);font-weight:700;min-width:5.5em">${esc(g.label)}</span>${ls.map(btn).join('')}</div>`;
+  }).filter(Boolean).join('');
+  const nextArea=rows
+    ? `<div style="display:flex;flex-direction:column;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border);background:#fff;max-height:40vh;overflow-y:auto">${rows}</div>`
     : '';
   return crumbs+nextArea;
 }
@@ -3154,6 +3167,7 @@ function randomizeDays(cookDays){
   renderAdminDayContent();
 }
 // ===================== PAST / FUTURE SCREENS =====================
+let pastViewMode='week';
 // ★V2.59.0新設：過去の献立を材料名で検索できるようにする（週内のいずれかの主菜・副菜・サラダの材料/名前に部分一致するものだけ表示）
 function renderPast(){
   const today=new Date();today.setHours(0,0,0,0);
@@ -3186,7 +3200,35 @@ function renderPast(){
       if(hits.length){filteredKeys.push(k);matchInfo[k]=hits;}
     });
   }
+  const wBtn=document.getElementById('past-mode-week'),mBtn=document.getElementById('past-mode-month');
+  if(wBtn)wBtn.className=pastViewMode==='week'?'btn-primary':'btn-secondary';
+  if(mBtn)mBtn.className=pastViewMode==='month'?'btn-primary':'btn-secondary';
   let html='';
+  if(filteredKeys.length&&pastViewMode==='month'){
+    // ★V2.64.0新設：月ごと表示。週開始日（月曜）の年月でまとめ、各週の曜日別料理名を一覧表示
+    const hitMenus=new Set(Object.values(matchInfo).flat().map(h=>h.day+'|'+h.menu));
+    let curMonth='';
+    filteredKeys.forEach(k=>{
+      const [y,m]=k.split('-');
+      const mk=`${y}年${parseInt(m)}月`;
+      if(mk!==curMonth){curMonth=mk;html+=`<div style="font-size:16px;font-weight:800;color:var(--navy);margin:16px 0 6px;border-bottom:2px solid var(--amber);padding-bottom:4px">${mk}</div>`;}
+      const lines=DAYS.map(d=>{
+        const day=DB.weeks[k]?.menus?.[d];
+        if(!day||!day.cooking)return '';
+        const names=(day.dishes||[]).filter(x=>x.menu&&x.menu.trim()).map(x=>{
+          const hit=query&&hitMenus.has(d+'|'+x.menu);
+          return hit?`<b style="color:var(--amber)">${esc(x.menu)}</b>`:esc(x.menu);
+        });
+        if(!names.length)return '';
+        return `<div style="font-size:13px;line-height:1.7"><span style="display:inline-block;width:1.6em;font-weight:700;color:var(--navy)">${d}</span>${names.join('／')}</div>`;
+      }).join('');
+      html+=`<div class="archive-week-row" style="display:block" onclick="go('week',{weekKey:'${k}',weekTab:'menu',weekDay:'月'})">
+        <div class="label" style="margin-bottom:4px">${getWeekLabel(k)} ›</div>${lines||'<div style="font-size:12px;color:var(--gray)">料理なし</div>'}
+      </div>`;
+    });
+    document.getElementById('past-content').innerHTML=html;
+    return;
+  }
   if(filteredKeys.length===0){
     html=query
       ?`<p style="padding:20px;color:var(--gray);text-align:center">「${esc(query)}」を含む過去の献立が見つかりません</p>`
