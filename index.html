@@ -422,8 +422,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 </div>
 <script>
 // =====================================================
-// 夕食献立管理アプリ V2.68.0（2026-10-04 2026年4〜5月の過去献立を追加）
+// 夕食献立管理アプリ V2.69.0（2026-10-17 ライブラリのフィルタに採用歴ありを追加）
 // 変更履歴（Changelog）
+// V2.69.0:
+//  [BR-1] 全献立リストとプリセット選択のフィルタに「📅 採用歴あり」を追加。週の献立に一度でも採用されたメニューだけに絞り込める（ラベル・検索と併用可）
 // V2.68.0:
 //  [BQ-1] 2026年4〜5月の過去献立（4/13週〜5/25週の7週分）をHISTORY_ADDITIONS_202604として埋め込み、applyHistoryAdditions()で管理者端末（PAT設定済み）の起動時に1回だけDBへ追加しGistへ保存。既に料理がある曜日は残す。分量は記載量をそのまま保存
 // V2.67.0:
@@ -613,7 +615,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kak
 //  [A-3] バックアップをversion:2へ拡張（評価・投票履歴・プリセット編集・手配チェックを含む／v1も復元可）
 //  [A-4] scaleAmount()のeval()を除去し分数演算(split)に置換
 // =====================================================
-const APP_VERSION='V2.68.0';
+const APP_VERSION='V2.69.0';
 // ===================== SEED DATA =====================
 // ===================== PRESET DISHES =====================
 const PRESET_DISHES=[
@@ -2279,14 +2281,23 @@ function updatePresetList(){
   const more=filtered.length>MAX?`<div class="preset-empty">他${filtered.length-MAX}件 → 絞り込んでください</div>`:'';
   el.innerHTML=items+more;
 }
+// ★V2.69.0新設：週の献立に一度でも採用されたメニュー名の集合（ライブラリの「採用歴あり」フィルタ用）
+function getUsedMenuSet(){
+  const set=new Set();
+  Object.values(DB.weeks).forEach(wd=>DAYS.forEach(d=>(wd.menus?.[d]?.dishes||[]).forEach(x=>{if(x.menu)set.add(x.menu);})));
+  return set;
+}
+let awUsedOnly=false;
+let allMenusUsedOnly=false;
 function filterPresets(query,activeLabels,excludeLabels){
   // ★A-2修正：検索・絞り込みもプリセット編集を反映した一覧を対象とする
+  const used=awUsedOnly?getUsedMenuSet():null;
   return getMergedPresets().filter(d=>{
     const lbls=d.labels||[];
     const matchLabel=!activeLabels||!activeLabels.length||activeLabels.every(l=>lbls.includes(l));
     const matchExclude=!excludeLabels||!excludeLabels.length||excludeLabels.every(l=>!lbls.includes(l));
     const matchQ=!query||d.menu.includes(query)||(d.ingredients&&d.ingredients.some(i=>i.n&&i.n.includes(query)));
-    return matchLabel&&matchExclude&&matchQ;
+    return matchLabel&&matchExclude&&matchQ&&(!awUsedOnly||used.has(d.menu));
   });
 }
 // 段階的シングルセレクト：ラベルを追加（既選択なら以降を削除）
@@ -2361,7 +2372,8 @@ function buildLabelFilterHTML(){
   const nextArea=rows
     ? `<div style="display:flex;flex-direction:column;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border);background:#fff;max-height:40vh;overflow-y:auto">${rows}</div>`
     : '';
-  return crumbs+nextArea;
+  const usedBtn=`<div style="padding:6px 16px;border-bottom:1px solid var(--border);background:#fff"><button class="preset-cat-btn${awUsedOnly?' active':''}" style="font-size:12px;padding:4px 10px" onclick="awUsedOnly=!awUsedOnly;updatePresetOverlayList()">📅 採用歴あり${awUsedOnly?' ×':''}</button></div>`;
+  return usedBtn+crumbs+nextArea;
 }
 function renderPresetOverlay(){
   const ov=document.getElementById('preset-overlay');
@@ -3373,6 +3385,8 @@ function renderAllMenus(){
     });
   });
 
+  const usedSides=new Set();
+  Object.values(DB.weeks).forEach(wd=>DAYS.forEach(d=>(wd.menus?.[d]?.sides||[]).forEach(x=>{if(x.name)usedSides.add(x.name);})));
   // Label filter chips (main menu)
   const extraCats=['副菜','サラダ'];
   const mainCatBtns=['すべて',...extraCats].map(c=>`<button class="preset-cat-btn${allMenusCat===c?' active':''}" style="flex-shrink:0" onclick="allMenusCat='${jsArg(c)}';allMenusLabels=[];allMenusExcludeLabels=[];renderAllMenus()">${esc(c)}</button>`).join('');
@@ -3383,7 +3397,8 @@ function renderAllMenus(){
     catsEl.innerHTML=mainCatBtns;
     catsEl.style.display=inLabelMode?'none':'flex';
   }
-  if(labelEl) labelEl.innerHTML=(!['副菜','サラダ'].includes(allMenusCat))?buildAllMenusLabelHTML():'';
+  const usedBtn=`<div style="margin-bottom:6px"><button class="preset-cat-btn${allMenusUsedOnly?' active':''}" style="font-size:12px;padding:4px 10px" onclick="allMenusUsedOnly=!allMenusUsedOnly;renderAllMenus()">📅 採用歴あり${allMenusUsedOnly?' ×':''}</button></div>`;
+  if(labelEl) labelEl.innerHTML=usedBtn+((!['副菜','サラダ'].includes(allMenusCat))?buildAllMenusLabelHTML():'');
 
   // Genre sub-filter (副菜/サラダのみ)
   const genreEl=document.getElementById('all-menus-genres');
@@ -3404,7 +3419,7 @@ function renderAllMenus(){
       const matchLabel=!allMenusLabels.length||allMenusLabels.every(l=>lbls.includes(l));
       const matchExclude=!allMenusExcludeLabels.length||allMenusExcludeLabels.every(l=>!lbls.includes(l));
       const matchQ=!query||p.menu.includes(query)||(p.ingredients&&p.ingredients.some(i=>i.n&&i.n.includes(query)));
-      return matchLabel&&matchExclude&&matchQ;
+      return matchLabel&&matchExclude&&matchQ&&(!allMenusUsedOnly||!!lastUsed[p.menu]);
     });
     list=list.slice().sort((a,b)=>{
       const la=lastUsed[a.menu]||'';
@@ -3446,7 +3461,7 @@ function renderAllMenus(){
   if((allMenusCat==='すべて'&&!allMenusLabels.length)||allMenusCat==='副菜'){
     const sidePool=(AEON_SIDES||[]).filter(s=>{
       const matchGenre=allMenusCat!=='副菜'||allMenusGenre==='すべて'||(s.labels||[]).includes(allMenusGenre);
-      return matchGenre&&(!query||s.name.includes(query));
+      return matchGenre&&(!query||s.name.includes(query))&&(!allMenusUsedOnly||usedSides.has(s.name));
     });
     listHtml+=sidePool.map(s=>{
       const lu=getSideLastUsed(s.name);
@@ -3465,7 +3480,7 @@ function renderAllMenus(){
     }).join('');
   }
   if((allMenusCat==='すべて'&&!allMenusLabels.length)||allMenusCat==='サラダ'){
-    const saladPool=(AEON_SALADS||[]).filter(s=>!query||s.name.includes(query));
+    const saladPool=(AEON_SALADS||[]).filter(s=>(!query||s.name.includes(query))&&(!allMenusUsedOnly||usedSides.has(s.name)));
     listHtml+=saladPool.map(s=>{
       const lu=getSideLastUsed(s.name);
       const rt=getSideRatingTotal(s.name);
